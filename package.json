@@ -1,0 +1,19 @@
+{
+  "name": "ev-chargeflow",
+  "version": "1.0.0",
+  "description": "EV ChargeFlow - Modern Deterministic EV Charging Management & Simulation Platform",
+  "main": "index.html",
+  "scripts": {
+    "start": "serve .",
+    "dev": "serve ."
+  },
+  "keywords": [
+    "ev",
+    "charging-station",
+    "priority-queue",
+    "deterministic-scheduling",
+    "billing-engine"
+  ],
+  "author": "Sakshi Jha",
+  "license": "MIT"
+}

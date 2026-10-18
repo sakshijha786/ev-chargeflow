@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>EV ChargeFlow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#0B1220;--blue:#2563EB;--cyan:#06B6D4;--green:#22C55E;--amber:#F59E0B;--red:#EF4444;--bg:#F8FAFC;--mut:#64748B;--line:#E2E8F0;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*:before,*:after{box-sizing:inherit}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--navy);font:14px/1.5 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,.logo,.big{font-family:Manrope,Inter,sans-serif;margin:0;letter-spacing:-.01em}
+a{color:var(--blue);text-decoration:none}small{color:var(--mut);display:block;font-size:12px}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+/* shell */
+.shell{display:flex;min-height:100%}
+aside{position:fixed;left:0;top:0;bottom:0;width:244px;background:var(--navy);color:#fff;padding:calc(22px + env(safe-area-inset-top,0px)) 14px calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;z-index:30;transition:transform .3s}
+.logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;padding:0 8px 22px}
+.mk{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--blue),var(--cyan));display:grid;place-items:center;font-size:15px}
+aside nav{display:flex;flex-direction:column;gap:2px;flex:1}
+aside nav a{color:#B6C2D9;padding:9px 12px;border-radius:10px;position:relative;transition:background .2s,color .2s}
+aside nav a:hover{background:rgba(255,255,255,.06);color:#fff}
+aside nav a.on{background:rgba(37,99,235,.28);color:#fff;font-weight:600}
+aside nav a.on:before{content:"";position:absolute;left:-14px;top:8px;bottom:8px;width:3px;border-radius:3px;background:var(--cyan)}
+.uchip{border-top:1px solid rgba(255,255,255,.1);padding:14px 8px 0}.uchip small{color:#8FA0BD}.uchip a{color:var(--cyan);font-size:12px}
+main{margin-left:244px;flex:1;min-width:0;padding:0 28px 40px}
+.top{display:flex;align-items:center;gap:12px;padding:22px 0 18px}.top h2{font-size:24px;font-weight:800;flex:1}
+.tr{display:flex;gap:10px;align-items:center}.chip{background:#fff;border:1px solid var(--line);border-radius:99px;padding:5px 12px;font-size:12px;color:var(--mut)}
+.bell{position:relative;background:#fff;border:1px solid var(--line);border-radius:99px;padding:5px 14px;font-size:12px;color:var(--navy)}
+.bell b{background:var(--blue);color:#fff;border-radius:99px;padding:0 6px;margin-left:6px;font-size:11px}
+.menu{display:none}
+.page{animation:pin .35s ease both}@keyframes pin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+/* primitives */
+.card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 1px 2px rgba(11,18,32,.05),0 10px 26px -14px rgba(11,18,32,.14)}
+.card h3{font-size:16px;margin-bottom:12px;font-weight:700}
+.hov{transition:transform .2s,box-shadow .2s}.hov:hover{transform:translateY(-3px);box-shadow:0 14px 30px -14px rgba(37,99,235,.28)}
+.grid{display:grid;gap:16px;margin-bottom:16px}.k4{grid-template-columns:repeat(4,1fr)}.k3{grid-template-columns:repeat(3,1fr)}.two{grid-template-columns:1.5fr 1fr}.half{grid-template-columns:1fr 1fr}
+.bays{grid-template-columns:repeat(auto-fill,minmax(190px,1fr));margin:0}
+.btn{border:0;background:var(--blue);color:#fff;font:600 14px Inter;padding:10px 18px;border-radius:11px;cursor:pointer;transition:transform .15s,background .2s;display:inline-block}
+.btn:hover{background:#1D4ED8;transform:translateY(-1px)}.btn:active{transform:none}
+.btn.ghost{background:#EEF2FF;color:var(--blue)}.btn.ghost:hover{background:#E0E7FF}.btn.red{background:#FEE2E2;color:#B91C1C}.btn.sm{padding:5px 11px;font-size:12px;border-radius:8px}.btn.wide{width:100%;padding:13px}
+input,select{font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:10px;width:100%;background:#fff;transition:border .2s,box-shadow .2s}
+input:focus,select:focus{outline:0;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+label{display:block;font-weight:600;font-size:13px;margin:14px 0 6px}input[type=range]{padding:0;accent-color:var(--blue)}
+.kpi b{font:800 30px Manrope;display:block;line-height:1.1;margin:6px 0 2px}.kpi span{color:var(--mut);font-size:13px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 10px;border-radius:99px;background:#F1F5F9;color:#475569}
+.pill i{width:7px;height:7px;border-radius:50%;background:currentColor;animation:pl 1.6s ease-in-out infinite}
+@keyframes pl{50%{opacity:.25;transform:scale(1.5)}}
+.pill.AVAILABLE,.pill.COMPLETED{background:#DCFCE7;color:#15803D}.pill.RESERVED,.pill.PENDING_ARRIVAL,.pill.WAITING{background:#FEF3C7;color:#B45309}
+.pill.CHARGING{background:#DBEAFE;color:#1D4ED8}.pill.OUT_OF_SERVICE,.pill.EXPIRED,.pill.CANCELLED{background:#F1F5F9;color:#64748B}.pill.OUT_OF_SERVICE i,.pill.EXPIRED i,.pill.COMPLETED i,.pill.CANCELLED i{animation:none}
+.pri{font-size:11px;font-weight:700;padding:2px 9px;border-radius:99px}.p1{background:#F1F5F9;color:#475569}.p2{background:#FEF3C7;color:#B45309}.p3{background:#FEE2E2;color:#B91C1C}
+.bar{height:6px;background:#E8EEF7;border-radius:9px;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--cyan));border-radius:9px;transition:width 1s linear}
+.bay{border-radius:14px;border:1px solid var(--line);padding:14px;background:#fff;transition:transform .2s,box-shadow .2s;border-top:3px solid #CBD5E1}
+.bay:hover{transform:translateY(-3px);box-shadow:0 12px 24px -14px rgba(11,18,32,.25)}
+.bay.AVAILABLE{border-top-color:var(--green)}.bay.RESERVED{border-top-color:var(--amber)}.bay.CHARGING{border-top-color:var(--blue)}
+.bay.is-me{border:2.5px solid #7C3AED!important;background:linear-gradient(180deg,#F5F3FF 0%,#FFF 100%)!important;box-shadow:0 0 0 3px rgba(124,58,237,.18),0 12px 28px -6px rgba(124,58,237,.35)!important;position:relative}
+.bay.is-me::after{content:'YOUR BAY';position:absolute;top:-11px;right:12px;background:linear-gradient(135deg,#7C3AED,#9333EA);color:#fff;font:800 10px/1.2 Manrope,sans-serif;padding:3px 8px;border-radius:6px;letter-spacing:.5px;box-shadow:0 2px 8px rgba(124,58,237,.4)}
+.bay.is-me .bar i{background:linear-gradient(90deg,#7C3AED,#C084FC)!important}
+.you-chip{background:linear-gradient(135deg,#7C3AED,#9333EA);color:#fff!important;font-weight:800;font-size:11px;padding:2px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:3px;box-shadow:0 2px 6px rgba(124,58,237,.35);letter-spacing:.3px}
+.bh{display:flex;justify-content:space-between;margin-bottom:8px;font-family:Manrope}.bh span{color:var(--mut);font-size:12px}.bm{font-size:12px;color:var(--mut);margin:8px 0}
+/* queue */
+.qrow{display:flex;align-items:center;gap:12px;padding:11px 8px;border-bottom:1px solid var(--line);border-radius:10px}.qrow:last-child{border:0}
+.qrow>div{flex:1}.qrow b{font-weight:600}.qrow.me{background:#F5F3FF!important;border-left:4px solid #7C3AED!important}.qrow.me .pos{background:#7C3AED!important;color:#fff}.qrow.up{animation:up .6s ease}
+@keyframes up{from{transform:translateY(22px);background:#DBEAFE;opacity:.5}}
+.pos{width:30px;height:30px;border-radius:9px;background:var(--navy);color:#fff;display:grid;place-items:center;font:700 13px Manrope}.eta{color:var(--mut);font-size:12px}.acts{display:flex;gap:6px}
+.empty{padding:26px;text-align:center;color:var(--mut)}
+table{width:100%;border-collapse:collapse}th{text-align:left;font-weight:600;color:var(--mut);font-size:12px;padding:8px 10px;border-bottom:1px solid var(--line)}td{padding:11px 10px;border-bottom:1px solid #F1F5F9}tr.click{cursor:pointer}tr.click:hover td{background:#F8FAFC}
+.scroll{overflow-x:auto}
+/* ring */
+.ringw{display:grid;place-items:center;position:relative;width:200px;height:200px;margin:auto}.ringw svg{transform:rotate(-90deg)}
+.ringw div{position:absolute;text-align:center}.big{font-size:38px;font-weight:800}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.stats b{font:700 20px Manrope;display:block}
+.opt{display:flex;gap:10px}.opt label{flex:1;margin:0;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;transition:border .2s,background .2s;font-weight:500}
+.opt input{display:none}.opt label:has(input:checked){border-color:var(--blue);background:#EFF6FF}.opt b{display:block}
+.note{display:flex;gap:12px;padding:12px 6px;border-bottom:1px solid var(--line)}.note:last-child{border:0}.dot{width:9px;height:9px;border-radius:50%;background:var(--blue);margin-top:6px;flex:none}.note.rd .dot{background:#CBD5E1}.note.warn .dot{background:var(--amber)}.note div{flex:1}
+.cols{display:flex;align-items:flex-end;gap:12px;height:170px}.cols div{flex:1;text-align:center;font-size:12px;color:var(--mut);display:flex;flex-direction:column;justify-content:flex-end;height:100%}
+.cols i{display:block;background:linear-gradient(180deg,var(--cyan),var(--blue));border-radius:8px 8px 3px 3px;animation:gr .8s ease both;transform-origin:bottom;margin-bottom:6px}@keyframes gr{from{transform:scaleY(0)}}
+.hb{display:grid;grid-template-columns:60px 1fr 42px;gap:10px;align-items:center;margin:9px 0}
+/* skeleton, toast, modal */
+.sk{min-height:96px;background:linear-gradient(90deg,#EEF2F7 25%,#F8FAFC 50%,#EEF2F7 75%);background-size:200% 100%;animation:sh 1.2s infinite}.sk.tall{min-height:260px}@keyframes sh{to{background-position:-200% 0}}
+#toasts{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:10px;z-index:99;max-width:calc(100% - 36px)}
+.toast{background:var(--navy);color:#fff;border-radius:12px;padding:12px 16px;width:320px;max-width:100%;border-left:4px solid var(--cyan);box-shadow:0 14px 30px -10px rgba(0,0,0,.4);animation:ti .35s ease}.toast span{display:block;color:#B6C2D9;font-size:13px}
+.toast.warn{border-color:var(--amber)}.toast.ok{border-color:var(--green)}.toast.out{opacity:0;transform:translateX(30px);transition:.3s}@keyframes ti{from{opacity:0;transform:translateX(30px)}}
+.ov{position:fixed;inset:0;background:rgba(11,18,32,.5);display:grid;place-items:center;padding:16px;opacity:0;transition:opacity .2s;z-index:80}.ov.on{opacity:1}
+.mod{background:#fff;border-radius:18px;padding:24px;width:420px;max-width:100%;max-height:90%;overflow:auto;transform:translateY(16px) scale(.97);transition:transform .25s}.ov.on .mod{transform:none}
+.mod .row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed var(--line)}.mod .row.t{border:0;font:800 18px Manrope;padding-top:12px}
+/* landing + auth */
+.land{background:var(--navy);color:#fff}
+.lnav{display:flex;align-items:center;justify-content:space-between;padding:calc(18px + env(safe-area-inset-top,0px)) 6vw 18px}.lnav .logo{padding:0}.lnav a:not(.btn){color:#B6C2D9;margin-right:18px}
+.hero{display:grid;grid-template-columns:1.1fr 1fr;gap:48px;align-items:center;padding:56px 6vw 80px}
+.hero h1{font-size:clamp(34px,5vw,58px);font-weight:800;line-height:1.05}.hero p{color:#B6C2D9;font-size:17px;max-width:500px;margin:18px 0 28px}
+.hero .card{color:var(--navy);background:#fff}.hero .btn.ghost{background:rgba(255,255,255,.1);color:#fff}
+.sec{background:var(--bg);color:var(--navy);padding:64px 6vw}.sec h2{font-size:28px;font-weight:800;margin-bottom:24px;color:var(--blue)}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}.steps h4{margin:0 0 10px;color:var(--blue);font:800 18px/1.3 Manrope,Inter,sans-serif;display:flex;align-items:baseline;gap:8px}.steps h4 b{font:800 18px Manrope,Inter,sans-serif;color:var(--blue)}.steps p{margin:0;color:var(--mut)}
+.foot{padding:26px 6vw;color:#8FA0BD;font-size:13px;background:var(--navy)}
+.auth{min-height:100%;display:grid;place-items:center;padding:24px;background:linear-gradient(160deg,var(--navy) 45%,#132447)}.auth .card{width:400px;max-width:100%;padding:28px}
+.tabs{display:flex;background:#F1F5F9;border-radius:11px;padding:4px;margin:14px 0 4px}.tabs button{flex:1;border:0;background:none;padding:8px;border-radius:8px;font:600 13px Inter;cursor:pointer;transition:.2s}.tabs button.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.formula{font:600 15px Manrope;background:var(--navy);color:#fff;border-radius:14px;padding:18px 22px;line-height:1.9}.formula span{color:var(--cyan)}
+@media(max-width:900px){aside{transform:translateX(-100%)}aside.open{transform:none}main{margin-left:0;padding:0 16px 32px}.menu{display:block;background:#fff;border:1px solid var(--line);border-radius:10px;padding:6px 12px;font:600 13px Inter}
+.k4,.k3,.two,.half,.hero,.steps{grid-template-columns:1fr 1fr}.two,.hero{grid-template-columns:1fr}.top h2{font-size:20px}.tr .chip{display:none}.opt{flex-direction:column}}
+@media(max-width:560px){.k4,.k3,.half,.steps{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style></head><body>
+<div id="app"></div><div id="toasts"></div>
+<script>
+const $=s=>document.querySelector(s),T0=Date.now();
+const RATE=18,FEE=25,GST=.18,GRACE=300,SPEED=10; // sim seconds per real second; grace period = 5 min like the backend
+const PN=['','Standard','Premium','Emergency'],VEH={'Tata Nexon EV':40.5,'MG ZS EV':50.3,'Hyundai Kona':39.2,'BYD Atto 3':60.5};
+const LBL={AVAILABLE:'Available',RESERVED:'Reserved',CHARGING:'Charging',OUT_OF_SERVICE:'Out of service',WAITING:'Waiting',PENDING_ARRIVAL:'Awaiting arrival',COMPLETED:'Completed',EXPIRED:'Timed out',CANCELLED:'Cancelled'};
+let T=0,rt;
+const S={me:null,role:null,seq:10,id:100,pp:{},
+chargers:[{id:1,code:'C-01',loc:'Bay A · DC fast',kw:60,status:'CHARGING',u:82},{id:2,code:'C-02',loc:'Bay B · DC fast',kw:60,status:'CHARGING',u:74},{id:3,code:'C-03',loc:'Bay C · DC',kw:30,status:'CHARGING',u:66},{id:4,code:'C-04',loc:'Bay D · DC',kw:30,status:'RESERVED',u:58},{id:5,code:'C-05',loc:'Bay E · AC',kw:22,status:'CHARGING',u:47},{id:6,code:'C-06',loc:'Bay F · AC',kw:22,status:'OUT_OF_SERVICE',u:12}],
+users:[['Aarav Mehta','aarav@demo.in'],['Priya Nair','priya@demo.in'],['Rohan Iyer','rohan@demo.in'],['Sana Khan','sana@demo.in'],['Vikram Rao','vikram@demo.in'],['Meera Shah','meera@demo.in'],['Karan Bose','karan@demo.in'],['Dev Patel','dev@demo.in']].map((u,i)=>({id:i+1,name:u[0],email:u[1],joined:'2026-0'+(3+i%5)+'-1'+i})),
+bk:[],queue:[],hist:[],notes:[],rev:[['Mon',4820,236],['Tue',5310,261],['Wed',4490,218],['Thu',6120,302],['Fri',6880,340],['Sat',7450,371],['Today',0,0]]};
+const B=(id,uid,ch,target,got,st,pri,extra)=>Object.assign({id,uid,ch,name:S.users[uid-1].name,target,got,status:st,pri,res:-60,deadline:T+GRACE,t0:-300},extra);
+S.bk=[B(90,2,1,24,14,'CHARGING',1),B(91,3,2,30,9,'CHARGING',2),B(92,4,3,18,10,'CHARGING',1),B(93,5,4,20,0,'PENDING_ARRIVAL',1,{res:0,deadline:240,noShow:true}),B(94,8,5,15,4,'CHARGING',1)];
+S.chargers.forEach(c=>{const b=S.bk.find(x=>x.ch==c.id);c.bk=b?b.id:null});
+S.queue=[{id:95,uid:6,name:'Meera Shah',pri:1,kwh:22,at:1,t0:-200},{id:96,uid:7,name:'Karan Bose',pri:2,kwh:26,at:2,t0:-120}];
+[['Sun 20 Sep',1,'C-02',22.4,1],['Fri 18 Sep',1,'C-01',31.0,1],['Tue 15 Sep',1,'C-03',18.5,1],['Sat 12 Sep',1,'C-01',27.8,1],['Wed 9 Sep',1,'C-05',0,0]].forEach((h,i)=>S.hist.push(inv({id:80-i,uid:h[1],name:'Aarav Mehta',code:h[2],when:h[0],kwh:h[3],status:h[4]?'COMPLETED':'EXPIRED'})));
+S.notes=[{uid:1,t:'Welcome to EV ChargeFlow',m:'Request charging and we will assign the best free bay for you.',read:0},{uid:1,t:'Reservation timed out',m:'C-05 was released after the 5 minute arrival window passed.',read:1,type:'warn'}];
+function bill(k){const e=k*RATE,s=e+(k?FEE:0),g=s*GST;return{e,f:k?FEE:0,g,tot:s+g}}
+function inv(o){return Object.assign(o,bill(o.kwh))}
+const inr=n=>'₹'+n.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}),fmt=s=>{s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
+const clock=()=>new Date(T0+T*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+const isMine=x=>S.role=='user'&&S.me&&x.uid==S.me.id,ch=id=>S.chargers.find(c=>c.id==id),qs=()=>[...S.queue].sort((a,b)=>b.pri-a.pri||a.at-b.at);
+const myQ=()=>S.queue.find(isMine),myB=()=>S.bk.find(b=>isMine(b)&&(b.status=='PENDING_ARRIVAL'||b.status=='CHARGING'));
+const pill=s=>`<span class="pill ${s}"><i style="animation-delay:-${(Date.now()%1600)/1000}s"></i>${LBL[s]}</span>`,pb=p=>`<span class="pri p${p}">${PN[p]}</span>`;
+const mark=()=>'<span class="mk">⚡</span>';
+/* ---------- rules engine ---------- */
+function ev(uid,t,m,type){S.notes.unshift({uid,t,m,type,read:0,at:clock()});if(S.role=='admin'||(S.me&&uid==S.me.id&&S.role=='user'))toast(t,m,type)}
+function allocate(){ // priority first, FIFO inside a priority; fast chargers go to Premium/Emergency
+  for(;;){const free=S.chargers.filter(c=>c.status=='AVAILABLE');if(!free.length||!S.queue.length)break;
+    const q=qs()[0];S.queue.splice(S.queue.indexOf(q),1);free.sort((a,b)=>b.kw-a.kw);const c=q.pri>=2?free[0]:free[free.length-1];
+    const b={id:++S.id,uid:q.uid,name:q.name,ch:c.id,target:q.kwh,got:0,status:'PENDING_ARRIVAL',pri:q.pri,res:T,deadline:T+GRACE,walk:q.walk,noShow:q.noShow||q.uid==5};
+    S.bk.push(b);c.status='RESERVED';c.bk=b.id;
+    ev(q.uid,`Charger ${c.code} reserved`,q.walk?`${q.name} assigned to ${c.code}.`:`Arrive within 5:00 or the slot goes to the next driver.`,'ok');
+    if(q.walk)arrive(b)}}
+function arrive(b){b.status='CHARGING';b.t0=T;ch(b.ch).status='CHARGING';if(b.uid&&!b.walk)ev(b.uid,'Charging started',`${ch(b.ch).code} is delivering power.`)}
+function release(b,st){b.status=st;const c=ch(b.ch);if(c.status!='OUT_OF_SERVICE')c.status='AVAILABLE';c.bk=null}
+function finish(b){release(b,'COMPLETED');const h=inv({id:b.id,uid:b.uid,name:b.name,code:ch(b.ch).code,when:'Today '+clock(),kwh:+b.got.toFixed(2),status:'COMPLETED'});S.hist.unshift(h);
+  const r=S.rev[6];r[1]+=h.tot;r[2]+=h.kwh;ev(b.uid,'Charging complete',`${h.kwh} kWh delivered · ${inr(h.tot)} billed.`,'ok');allocate()}
+function expire(b){const code=ch(b.ch).code;release(b,'EXPIRED');S.hist.unshift(inv({id:b.id,uid:b.uid,name:b.name,code,when:'Today '+clock(),kwh:0,status:'EXPIRED'}));
+  ev(b.uid,'Reservation timed out',`${code} released after 5 minutes without arrival. Next in queue gets it.`,'warn');allocate()}
+function tick(){T+=SPEED;S.bk.forEach(b=>{
+  if(b.status=='CHARGING'){b.got+=ch(b.ch).kw*.9*SPEED/3600;if(b.got>=b.target){b.got=b.target;finish(b)}}
+  else if(b.status=='PENDING_ARRIVAL'){if(!isMine(b)&&!b.noShow&&b.uid!=5&&T-b.res>=110)arrive(b);else if(T>=b.deadline)expire(b);
+    else if(isMine(b)&&!b.warned&&b.deadline-T<=120){b.warned=1;ev(b.uid,'Arrive soon','2 minutes left before your slot is released.','warn')}}});
+  refresh()}
+function addReq(o){const e=Object.assign({id:++S.id,at:++S.seq,t0:T},o);S.queue.push(e);allocate();
+  const i=qs().indexOf(e);if(i>=0)ev(e.uid,'Added to queue',`You are #${i+1}. ${PN[e.pri]} priority.`);return e}
+/* ---------- helpers ---------- */
+function toast(t,m,type){const d=document.createElement('div');d.className='toast '+(type||'');d.innerHTML=`<b>${t}</b>${m?`<span>${m}</span>`:''}`;$('#toasts').appendChild(d);setTimeout(()=>{d.classList.add('out');setTimeout(()=>d.remove(),300)},4200)}
+function modal(h){const m=document.createElement('div');m.className='ov';m.innerHTML=`<div class="mod">${h}</div>`;m.onclick=e=>{if(e.target==m||e.target.dataset.x!=null)closeM()};document.body.appendChild(m);requestAnimationFrame(()=>m.classList.add('on'))}
+function closeM(){const m=$('.ov');if(!m)return;m.classList.remove('on');setTimeout(()=>m.remove(),220)}
+document.addEventListener('keydown',e=>{if(e.key=='Escape')closeM()});
+const L=k=>`<div data-live="${k}">${W[k]()}</div>`;
+const kpi=(l,v,s,p='')=>`<div class="card kpi hov"><span>${l}</span><b class="cnt" data-c="${v}" data-p="${p}">${p}${v.toLocaleString('en-IN')}</b><small>${s}</small></div>`;
+function refresh(){document.querySelectorAll('[data-live]').forEach(e=>{const h=W[e.dataset.live]();if(e._h!==h){e._h=h;e.innerHTML=h}})}
+function enter(){const v=$('#view')||$('#app').firstElementChild;v.style.animation='none';v.offsetWidth;v.style.animation='';
+  document.querySelectorAll('[data-live]').forEach(e=>e._h=W[e.dataset.live]());
+  document.querySelectorAll('.cnt').forEach(e=>{const to=+e.dataset.c,p=e.dataset.p,t0=performance.now();(function f(t){const k=Math.min(1,(t-t0)/700);e.textContent=p+Math.round(to*(1-Math.pow(1-k,3))).toLocaleString('en-IN');if(k<1)requestAnimationFrame(f)})(t0)})}
+/* ---------- widgets (live regions) ---------- */
+const W={};
+W.top=()=>`<span class="chip">Station time ${clock()} · demo ${SPEED}× speed</span><div style="display:inline-flex;gap:6px;align-items:center"><button class="btn sm" style="background:#2563EB;color:#fff;border:0;padding:5px 12px;font-size:12px;font-weight:700;border-radius:8px;cursor:pointer" onclick="runSimultaneousDemo()">⚡ Priority Demo</button><button class="btn sm" style="background:#0F172A;color:#38BDF8;border:1px solid #334155;padding:5px 12px;font-size:12px;font-weight:700;border-radius:8px;cursor:pointer" onclick="runReallocationDemo()">🔄 Reallocation Demo</button></div>`+(S.role=='user'?`<a class="bell" href="#/notifications">Alerts<b>${S.notes.filter(n=>n.uid==S.me.id&&!n.read).length}</b></a>`:'');
+W.board=()=>`<div class="grid bays">${S.chargers.map(c=>{const b=c.bk&&S.bk.find(x=>x.id==c.bk),p=b&&b.status=='CHARGING'?Math.min(100,b.got/b.target*100):0,mine=b&&isMine(b);
+ return `<div class="bay ${c.status} ${mine?'is-me':''}"><div class="bh"><b>${c.code}</b><span>${c.kw} kW</span></div>${pill(c.status)}<div class="bm">${b?(mine?'<span class="you-chip">You</span>':b.name.split(' ')[0])+(b.status=='PENDING_ARRIVAL'?(mine?` <b style="color:#7C3AED">· arrive in ${fmt(b.deadline-T)}</b>`:` · arrive in ${fmt(b.deadline-T)}`):` · ${Math.round(p)}%`):c.loc}</div><div class="bar"><i style="width:${p}%"></i></div></div>`}).join('')}</div>`;
+const qlist=(key,adm)=>{const q=qs(),P=S.pp[key]||(S.pp[key]={});const h=q.length?q.map((e,i)=>`<div class="qrow${P[e.id]>i+1?' up':''}${isMine(e)?' me':''}"><span class="pos">${i+1}</span><div><b>${isMine(e)?'<span class="you-chip">You</span>':e.name}</b>${e.walk?' <span class="pri p1">Walk-in</span>':''}<small>${Math.round(e.kwh)} kWh needed · waiting ${fmt(T-e.t0)}</small></div>${pb(e.pri)}${adm?`<span class="acts"><button class="btn sm ghost" onclick="promote(${e.id})">Promote</button><button class="btn sm red" onclick="dropQ(${e.id})">Remove</button></span>`:`<span class="eta">~${(i+1)*4} min</span>`}</div>`).join(''):'<div class="empty">Queue is clear. New requests get a bay right away.</div>';
+ q.forEach((e,i)=>P[e.id]=i+1);return h};
+W.queue=()=>`<div class="grid two"><div class="card"><h3>Waiting list</h3>${qlist('q')}</div><div class="card"><h3>How the order is decided</h3><p>1. Higher priority goes first: Emergency, then Premium, then Standard.</p><p>2. Same priority is first come, first served.</p><p>3. When a bay frees up, the first driver is reserved a charger and has 5 minutes to arrive.</p><p>4. If they don't, the slot passes to the next driver automatically.</p></div></div>`;
+const ring=(p,a,b,c)=>`<div class="ringw"><svg width="200" height="200"><circle cx="100" cy="100" r="86" fill="none" stroke="#E8EEF7" stroke-width="12"/><circle cx="100" cy="100" r="86" fill="none" stroke="url(#g)" stroke-width="12" stroke-linecap="round" stroke-dasharray="540.4" stroke-dashoffset="${540.4*(1-p)}" style="transition:stroke-dashoffset 1s linear"/><defs><linearGradient id="g"><stop stop-color="#2563EB"/><stop offset="1" stop-color="#06B6D4"/></linearGradient></defs></svg><div><span class="big">${a}</span><small>${b}</small></div></div>`;
+W.active=()=>{const b=myB(),q=myQ();if(b&&b.status=='CHARGING'){const c=ch(b.ch),bl=bill(b.got);return `<div class="grid two"><div class="card" style="text-align:center;border-top:4px solid #7C3AED">${pill('CHARGING')}<h3 style="margin:10px 0 0">${c.code} · ${c.kw} kW</h3>${ring(b.got/b.target,Math.round(b.got/b.target*100)+'%','of target')}<button class="btn red wide" style="margin-top:14px" onclick="stopMine()">Stop charging</button></div><div class="card"><h3>Live session</h3><div class="stats"><div><b>${b.got.toFixed(2)} kWh</b><small>Delivered</small></div><div><b>${(c.kw*.9).toFixed(1)} kW</b><small>Power</small></div><div><b>${fmt(T-b.t0)}</b><small>Elapsed</small></div><div><b>${inr(bl.tot)}</b><small>Running bill</small></div></div><p style="margin-top:16px;color:var(--mut)">Target ${b.target.toFixed(1)} kWh. Charging stops on its own when it is reached.</p></div></div>`}
+ if(b)return `<div class="card" style="max-width:520px;text-align:center;border-top:4px solid #7C3AED">${pill('PENDING_ARRIVAL')}<h3 style="margin-top:10px">${ch(b.ch).code} is reserved for you <span class="you-chip">YOU</span></h3>${ring((b.deadline-T)/GRACE,fmt(b.deadline-T),'to arrive')}<p style="color:var(--mut)">Plug in at ${ch(b.ch).loc}. The slot is released to the next driver when the timer ends.</p><button class="btn wide" onclick="arriveMine()">I've arrived at the bay</button><br><button class="btn ghost wide" style="margin-top:8px" onclick="cancelMine()">Cancel reservation</button></div>`;
+ return `<div class="card empty"><h3>${q?'You are in the queue':'No active session'}</h3><p>${q?'You are #'+(qs().indexOf(q)+1)+'. A charger will be reserved automatically.':'Request charging and a bay is assigned for you.'}</p><a class="btn" href="#/${q?'queue':'request'}">${q?'View queue':'Request charging'}</a></div>`};
+W.dash=()=>{const b=myB(),q=myQ(),mine=S.hist.filter(isMine),sp=mine.reduce((s,h)=>s+h.tot,0);
+ const st=b?(b.status=='CHARGING'?`${pill('CHARGING')} <b>${ch(b.ch).code}</b> · ${Math.round(b.got/b.target*100)}% <a href="#/active">Open session</a>`:`${pill('PENDING_ARRIVAL')} <b>${ch(b.ch).code}</b> · arrive in ${fmt(b.deadline-T)} <a href="#/active">Confirm arrival</a>`):q?`${pill('WAITING')} You are <b>#${qs().indexOf(q)+1}</b> in the queue <a href="#/queue">View queue</a>`:`No session yet. <a href="#/request">Request charging</a>`;
+ return `<div class="grid k4">${kpi('Free chargers',S.chargers.filter(c=>c.status=='AVAILABLE').length,'of '+S.chargers.length+' bays')}${kpi('Drivers waiting',S.queue.length,'in the queue')}${kpi('My sessions',mine.filter(h=>h.status=='COMPLETED').length,'completed')}${kpi('Total spent',Math.round(sp),'incl. GST','₹')}</div>
+ <div class="card" style="margin-bottom:16px;border-left:5px solid #7C3AED;background:linear-gradient(90deg,#FAF5FF 0%,#FFF 35%)"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><h3 style="margin:0;display:flex;align-items:center;gap:8px">Your status <span class="you-chip">YOU</span></h3></div><p style="margin:0">${st}</p></div><div class="card"><h3>Station bays</h3>${W.board()}</div>`};
+const bcard=()=>{const b=S.hist.filter(isMine)[0];return b};
+W.bill=()=>{const b=myB(),mine=S.hist.filter(isMine);
+ return `<div class="grid two"><div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h3>Invoices</h3>${mine.filter(h=>h.status=='COMPLETED').length?`<button class="btn sm ghost" onclick="downloadStatementPDF()">Download Statement (PDF)</button>`:''}</div><div class="scroll"><table><tr><th>Date</th><th>Charger</th><th>Energy</th><th>Total</th><th>Action</th></tr>${mine.filter(h=>h.status=='COMPLETED').map(h=>`<tr class="click" onclick="showInv(${h.id})"><td>${h.when}</td><td>${h.code}</td><td>${h.kwh} kWh</td><td><b>${inr(h.tot)}</b></td><td><button class="btn sm ghost" onclick="event.stopPropagation();downloadInvoicePDF(${h.id})" title="Download PDF">PDF</button></td></tr>`).join('')||'<tr><td colspan=5 class="empty">No invoices yet.</td></tr>'}</table></div></div>
+ <div><div class="card" style="margin-bottom:16px"><h3>Tariff</h3><div class="mod" style="padding:0;transform:none;width:auto"><div class="row"><span>Energy</span><b>${inr(RATE)} / kWh</b></div><div class="row"><span>Service fee</span><b>${inr(FEE)} / session</b></div><div class="row"><span>GST on both</span><b>18%</b></div></div></div>
+ ${b&&b.status=='CHARGING'?`<div class="card"><h3>Running bill</h3><b class="big">${inr(bill(b.got).tot)}</b><small>${b.got.toFixed(2)} kWh so far</small></div>`:''}</div></div>`};
+W.hist=()=>{const mine=S.hist.filter(isMine);return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h3>Charging history</h3>${mine.filter(h=>h.status=='COMPLETED').length?`<button class="btn sm ghost" onclick="downloadStatementPDF()">Download Statement (PDF)</button>`:''}</div><div class="scroll"><table><tr><th>Date</th><th>Charger</th><th>Energy</th><th>Status</th><th>Total</th><th>Invoice</th></tr>${mine.map(h=>`<tr class="click" onclick="showInv(${h.id})"><td>${h.when}</td><td>${h.code}</td><td>${h.kwh} kWh</td><td>${pill(h.status)}</td><td>${inr(h.tot)}</td><td>${h.status=='COMPLETED'?`<button class="btn sm ghost" onclick="event.stopPropagation();downloadInvoicePDF(${h.id})" title="Download PDF">PDF</button>`:'-'}</td></tr>`).join('')||'<tr><td colspan=6 class="empty">No sessions yet.</td></tr>'}</table></div></div>`};
+W.notes=()=>{const n=S.notes.filter(x=>x.uid==S.me.id);return `<div class="card"><div style="display:flex;justify-content:space-between"><h3>Latest alerts</h3><button class="btn sm ghost" onclick="S.notes.forEach(n=>n.read=1);refresh()">Mark all read</button></div>${n.map(x=>`<div class="note ${x.read?'rd':''} ${x.type||''}"><span class="dot"></span><div><b>${x.t}</b><small style="color:#475569">${x.m}</small></div><small>${x.at||''}</small></div>`).join('')||'<div class="empty">Nothing yet.</div>'}</div>`};
+W.adm=()=>{const act=S.bk.filter(b=>b.status=='CHARGING'),pend=S.bk.filter(b=>b.status=='PENDING_ARRIVAL'),r=S.rev[6];
+ return `<div class="grid k4">${kpi('Available chargers',S.chargers.filter(c=>c.status=='AVAILABLE').length,'of '+S.chargers.length)}${kpi('Live sessions',act.length,pend.length+' awaiting arrival')}${kpi('In queue',S.queue.length,'waiting drivers')}${kpi('Billed today',Math.round(r[1]+1840),'energy + fee + GST','₹')}</div>
+ <div class="card" style="margin-bottom:16px"><h3>Charger status</h3>${W.board()}</div>
+ <div class="grid two"><div class="card"><h3>Live sessions</h3><div class="scroll"><table><tr><th>Driver</th><th>Bay</th><th>Progress</th><th>Bill</th></tr>${act.map(b=>`<tr><td>${b.name}</td><td>${ch(b.ch).code}</td><td style="min-width:110px"><div class="bar"><i style="width:${b.got/b.target*100}%"></i></div></td><td>${inr(bill(b.got).tot)}</td></tr>`).join('')||'<tr><td colspan=4 class="empty">No live sessions.</td></tr>'}</table></div></div>
+ <div class="card"><h3>Queue</h3>${qlist('adm')}</div></div>
+ <div class="grid two"><div class="card"><h3>Registered drivers</h3><div class="scroll"><table><tr><th>Name</th><th>Email</th><th>Sessions</th></tr>${S.users.map(u=>`<tr><td>${u.name}</td><td>${u.email}</td><td>${S.hist.filter(h=>h.uid==u.id&&h.status=='COMPLETED').length}</td></tr>`).join('')}</table></div></div>
+ <div class="card"><h3>Activity</h3>${S.notes.slice(0,6).map(x=>`<div class="note ${x.type||''}"><span class="dot"></span><div><b>${x.t}</b><small>${x.m}</small></div></div>`).join('')}</div></div>`};
+W.chg=()=>`<div class="card"><div style="display:flex;justify-content:space-between;margin-bottom:10px"><h3>Chargers</h3><button class="btn sm" onclick="addChargerM()">Add charger</button></div><div class="scroll"><table><tr><th>Code</th><th>Location</th><th>Power</th><th>Status</th><th>Session</th><th>Set status</th></tr>${S.chargers.map(c=>{const b=c.bk&&S.bk.find(x=>x.id==c.bk);return `<tr><td><b>${c.code}</b></td><td>${c.loc}</td><td>${c.kw} kW</td><td>${pill(c.status)}</td><td>${b?b.name:'None'}</td><td><select style="width:auto" onchange="setSt(${c.id},this.value)">${['AVAILABLE','OUT_OF_SERVICE'].map(s=>`<option value="${s}" ${c.status==s?'selected':''}>${LBL[s]}</option>`).join('')}${c.bk?`<option selected>${LBL[c.status]}</option>`:''}</select></td></tr>`}).join('')}</table></div></div>`;
+W.qm=()=>{const pend=S.bk.filter(b=>b.status=='PENDING_ARRIVAL'),act=S.bk.filter(b=>b.status=='CHARGING');
+ return `<div class="grid two"><div class="card"><h3>Waiting queue</h3>${qlist('qm',1)}</div><div class="card"><h3>Reservations</h3>${pend.map(b=>`<div class="qrow"><span class="pos">${ch(b.ch).code.slice(2)}</span><div><b>${b.name}</b><small>Timeout in ${fmt(b.deadline-T)}</small></div><span class="acts"><button class="btn sm ghost" onclick="arrive(S.bk.find(x=>x.id==${b.id}));refresh()">Mark arrived</button><button class="btn sm red" onclick="expire(S.bk.find(x=>x.id==${b.id}));refresh()">Expire</button></span></div>`).join('')||'<div class="empty">No pending reservations.</div>'}</div></div>
+ <div class="card"><h3>Running sessions</h3>${act.map(b=>`<div class="qrow"><span class="pos">${ch(b.ch).code.slice(2)}</span><div><b>${b.name}</b><small>${b.got.toFixed(1)} / ${b.target.toFixed(0)} kWh</small></div>${pb(b.pri)}<button class="btn sm red" onclick="finish(S.bk.find(x=>x.id==${b.id}));refresh()">Stop session</button></div>`).join('')||'<div class="empty">No running sessions.</div>'}</div>`};
+W.rep=()=>{const max=Math.max(...S.rev.map(r=>r[1]),1),all=S.hist.filter(h=>h.status=='COMPLETED'),tot=S.rev.reduce((s,r)=>s+r[1],0)+1840,en=S.rev.reduce((s,r)=>s+r[2],0);
+ return `<div class="card" style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px"><div><h3 style="margin:0">Billing & Financial Reports</h3><small>Download comprehensive station reports and customer invoices as PDF</small></div><button class="btn" onclick="downloadReportPDF()"><span style="font-size:15px;margin-right:6px">📥</span>Download Station Report (PDF)</button></div>
+ <div class="grid k4">${kpi('Revenue, 7 days',Math.round(tot),'incl. GST','₹')}${kpi('Energy delivered',Math.round(en),'kWh')}${kpi('Sessions',all.length+96,'completed')}${kpi('No-show rate',8,'% of reservations')}</div>
+ <div class="grid two"><div class="card"><h3>Daily revenue</h3><div class="cols">${S.rev.map(r=>`<div><i style="height:${Math.max(3,r[1]/max*100)}%" title="${inr(r[1])}"></i>${r[0]}</div>`).join('')}</div></div>
+ <div class="card"><h3>Charger utilisation</h3>${S.chargers.map(c=>`<div class="hb"><b>${c.code}</b><div class="bar"><i style="width:${c.u}%"></i></div><small>${c.u}%</small></div>`).join('')}</div></div>
+ <div class="card" style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h3>Customer Invoices & Billing Audit</h3><button class="btn sm ghost" onclick="downloadReportPDF()">Export Report (PDF)</button></div><div class="scroll"><table><tr><th>Inv #</th><th>Driver</th><th>Date</th><th>Bay</th><th>Energy</th><th>Subtotal</th><th>GST (18%)</th><th>Total</th><th>Action</th></tr>${all.map(h=>`<tr><td><b>#${h.id}</b></td><td>${h.name}</td><td>${h.when}</td><td>${h.code}</td><td>${h.kwh} kWh</td><td>${inr(h.e+h.f)}</td><td>${inr(h.g)}</td><td><b>${inr(h.tot)}</b></td><td><button class="btn sm" onclick="downloadInvoicePDF(${h.id})">Download PDF</button></td></tr>`).join('')||'<tr><td colspan=9 class="empty">No completed invoices recorded.</td></tr>'}</table></div></div>
+ <div class="card"><h3>Billing rules applied</h3><div class="formula">Total = (<span>kWh × ${inr(RATE)}</span> + <span>${inr(FEE)} service fee</span>) + <span>18% GST</span></div></div>`};
+/* ---------- pages ---------- */
+const P={};
+P.dashboard=()=>L('dash');P.queue=()=>L('queue');P.active=()=>L('active');P.billing=()=>L('bill');P.history=()=>L('hist');P.notifications=()=>L('notes');
+P.admin=()=>L('adm');P.chargers=()=>L('chg');P.queuemgmt=()=>L('qm');P.reports=()=>L('rep');
+const vopts=`<option>${Object.keys(VEH).join('</option><option>')}</option>`;
+const prio=(n,d)=>`<div class="opt">${[1,2,3].map(p=>`<label><input type="radio" name="${n}" value="${p}" ${p==d?'checked':''}><b>${PN[p]}</b><small>${['','Normal turn','Faster charger','Urgent need'][p]}</small></label>`).join('')}</div>`;
+P.request=()=>`<div class="grid two"><div class="card"><h3>Request charging</h3><small>No need to pick a charger. The station allocates one by priority and availability.</small>
+<label>Vehicle</label><select id="veh" onchange="calc()">${vopts}</select><label>Current charge: <span id="cv">20</span>%</label><input id="cur" type="range" min="5" max="90" value="20" oninput="calc()">
+<label>Charge to: <span id="tv">80</span>%</label><input id="tgt" type="range" min="20" max="100" value="80" oninput="calc()"><label>Priority</label>${prio('pri',1)}
+<button class="btn wide" style="margin-top:20px" onclick="submitReq()">Request charging</button></div><div class="card"><h3>Estimate</h3><div id="sum"></div></div></div>`;
+P.walkin=()=>`<div class="grid two"><div class="card"><h3>Register walk-in customer</h3><small>For drivers at the station without the app. They join the same queue and rules.</small>
+<label>Name</label><input id="wn" placeholder="Customer name"><label>Phone</label><input id="wp" placeholder="98xxxxxx10"><label>Vehicle</label><select id="wv">${vopts}</select><label>Energy needed (kWh)</label><input id="wk" type="number" value="20" min="1" max="80"><label>Priority</label>${prio('wpri',1)}
+<button class="btn wide" style="margin-top:20px" onclick="submitWalk()">Add to queue</button></div><div class="card"><h3>Queue right now</h3>${L('qw')}</div></div>`;
+W.qw=()=>qlist('qw');
+function calc(){const v=$('#veh'),c=+$('#cur').value,t=Math.max(+$('#tgt').value,c+5);$('#cv').textContent=c;$('#tv').textContent=t;const k=(t-c)/100*VEH[v.value],b=bill(k);
+ $('#sum').innerHTML=`<div class="mod" style="padding:0;transform:none;width:auto"><div class="row"><span>Energy needed</span><b>${k.toFixed(1)} kWh</b></div><div class="row"><span>Energy (${inr(RATE)}/kWh)</span><span>${inr(b.e)}</span></div><div class="row"><span>Service fee</span><span>${inr(b.f)}</span></div><div class="row"><span>GST 18%</span><span>${inr(b.g)}</span></div><div class="row t"><span>Estimated total</span><span>${inr(b.tot)}</span></div></div>`;return k}
+function submitReq(){if(myB()||myQ())return toast('You already have an active request','Cancel it or wait for it to finish.','warn');
+ const k=calc();addReq({uid:S.me.id,name:S.me.name,pri:+document.querySelector('[name=pri]:checked').value,kwh:k});location.hash=myB()?'#/active':'#/queue'}
+function submitWalk(){const n=$('#wn').value.trim();if(!n)return toast('Enter the customer name','A name is needed to call them at the bay.','warn');
+ const e=addReq({uid:0,name:n,walk:1,pri:+document.querySelector('[name=wpri]:checked').value,kwh:+$('#wk').value||20});$('#wn').value='';refresh()}
+function promote(id){const e=S.queue.find(x=>x.id==id);if(e&&e.pri<3){e.pri++;toast('Priority raised',`${e.name} is now ${PN[e.pri]}.`,'ok')}else toast('Already highest priority','','warn');refresh()}
+function dropQ(id){const i=S.queue.findIndex(x=>x.id==id);if(i>=0){const e=S.queue.splice(i,1)[0];ev(e.uid,'Removed from queue',e.name+' was removed by the operator.','warn')}refresh()}
+function stopMine(){finish(myB());refresh()}function arriveMine(){arrive(myB());refresh()}
+function cancelMine(){const b=myB(),q=myQ();if(b){release(b,'CANCELLED');allocate()}else if(q)S.queue.splice(S.queue.indexOf(q),1);toast('Reservation cancelled','The charger goes to the next driver.');refresh()}
+function setSt(id,v){const c=ch(id);if(c.bk){toast('Charger is busy','Wait for the session to end first.','warn')}else{c.status=v;toast(c.code+' set to '+LBL[v].toLowerCase(),'','ok');allocate()}refresh()}
+function addChargerM(){modal(`<h3>Add charger</h3><label>Code</label><input id="nc" placeholder="C-07"><label>Location</label><input id="nl" placeholder="Bay G · DC"><label>Power (kW)</label><input id="nk" type="number" value="30"><div style="display:flex;gap:8px;margin-top:20px"><button class="btn" onclick="saveCharger()">Save charger</button><button class="btn ghost" data-x>Cancel</button></div>`)}
+function saveCharger(){const c=$('#nc').value.trim();if(!c)return toast('Enter a charger code','','warn');S.chargers.push({id:++S.id,code:c,loc:$('#nl').value||'New bay',kw:+$('#nk').value||30,status:'AVAILABLE',u:0,bk:null});closeM();toast('Charger added',c+' is ready.','ok');allocate();refresh()}
+function showInv(id){const h=S.hist.find(x=>x.id==id);if(!h)return;modal(`<h3>Invoice #${h.id}</h3><small>${h.when} · ${h.code} · ${h.name||'Driver'}</small><div style="margin-top:12px"><div class="row"><span>Energy ${h.kwh} kWh × ${inr(RATE)}</span><span>${inr(h.e)}</span></div><div class="row"><span>Service fee</span><span>${inr(h.f)}</span></div><div class="row"><span>GST 18%</span><span>${inr(h.g)}</span></div><div class="row t"><span>Total</span><span>${inr(h.tot)}</span></div></div><div style="display:flex;gap:8px;margin-top:16px"><button class="btn wide" onclick="downloadInvoicePDF(${h.id})">Download PDF</button><button class="btn ghost wide" onclick="printInvoice(${h.id})">Print / Save</button><button class="btn ghost" data-x>Close</button></div>`)}
+
+/* ---------- PDF Generation Subsystem ---------- */
+function makePDF(ops){
+  const esc=s=>String(s).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
+  const enc=new TextEncoder();
+  const streamData=ops.join('\n');
+  const streamBytes=enc.encode(streamData);
+  const h='%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
+  const objs=[
+    '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
+    '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
+    '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>\nendobj\n',
+    `4 0 obj\n<< /Length ${streamBytes.length} >>\nstream\n${streamData}\nendstream\nendobj\n`,
+    '5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n',
+    '6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj\n'
+  ];
+  let body=h, offsets=[];
+  objs.forEach(o=>{ offsets.push(enc.encode(body).length); body+=o });
+  const startxref=enc.encode(body).length;
+  let xref=`xref\n0 ${objs.length+1}\n0000000000 65535 f \n`;
+  offsets.forEach(off=>{ xref+=String(off).padStart(10,'0')+' 00000 n \n' });
+  const trailer=`trailer\n<< /Size ${objs.length+1} /Root 1 0 R >>\nstartxref\n${startxref}\n%%EOF`;
+  return new Blob([enc.encode(body+xref+trailer)], {type:'application/pdf'});
+}
+function downloadPDF(blob, filename){
+  const u=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=u; a.download=filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{ a.remove(); URL.revokeObjectURL(u) }, 500);
+}
+function downloadInvoicePDF(id){
+  const h=S.hist.find(x=>x.id==id);
+  if(!h)return toast('Invoice not found','','warn');
+  const u=S.users.find(x=>x.id==h.uid)||{name:h.name||'Customer',email:'customer@chargeflow.in'};
+  const c=S.chargers.find(x=>x.code==h.code)||{loc:'Bay · Fast Charger',kw:60};
+  const ops=[];
+  const esc=s=>String(s).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
+  const text=(str,x,y,size=10,font='F1',r=0,g=0,b=0)=>{
+    ops.push(`${r} ${g} ${b} rg BT /${font} ${size} Tf ${x.toFixed(2)} ${y.toFixed(2)} Td (${esc(str)}) Tj ET`);
+  };
+  const line=(x1,y1,x2,y2,lw=1,r=.8,g=.85,b=.9)=>{
+    ops.push(`${r} ${g} ${b} RG ${lw} w ${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l S`);
+  };
+  const rect=(x,y,w,lh,r,g,b)=>{
+    ops.push(`${r} ${g} ${b} rg ${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${lh.toFixed(2)} re f`);
+  };
+
+  rect(0, 740, 595.28, 101.89, 0.04, 0.07, 0.13);
+  rect(0, 735, 595.28, 5, 0.15, 0.39, 0.92);
+
+  text('EV CHARGEFLOW', 50, 785, 20, 'F2', 1, 1, 1);
+  text('OFFICIAL TAX INVOICE & RECEIPT', 50, 765, 10, 'F1', 0.02, 0.71, 0.83);
+  text('Central Station Hub · 24x7 Fast Charging', 330, 790, 9, 'F1', 0.8, 0.85, 0.9);
+  text('GSTIN: 27AAAAA0000A1Z5 | SAC: 998714', 330, 777, 9, 'F1', 0.8, 0.85, 0.9);
+  text('Billing & Support: billing@chargeflow.in', 330, 764, 9, 'F1', 0.8, 0.85, 0.9);
+
+  text('BILLED TO (CUSTOMER):', 50, 700, 9, 'F2', 0.4, 0.45, 0.55);
+  text(u.name, 50, 683, 14, 'F2', 0.04, 0.07, 0.13);
+  text(u.email || 'Registered EV Driver', 50, 668, 10, 'F1', 0.4, 0.45, 0.55);
+  text('Customer ID: #' + (h.uid || '0'), 50, 654, 9, 'F1', 0.5, 0.55, 0.6);
+
+  text('INVOICE NUMBER:', 360, 700, 9, 'F2', 0.4, 0.45, 0.55);
+  text('INV-' + String(h.id).padStart(5,'0'), 360, 683, 13, 'F2', 0.15, 0.39, 0.92);
+  text('Date & Time: ' + h.when, 360, 668, 9.5, 'F1', 0.3, 0.35, 0.4);
+  text('Station Bay: ' + h.code + ' (' + c.loc + ')', 360, 654, 9.5, 'F1', 0.3, 0.35, 0.4);
+
+  line(50, 636, 545, 636, 1.5, 0.15, 0.39, 0.92);
+
+  rect(50, 608, 495, 24, 0.95, 0.96, 0.98);
+  text('ITEM & DESCRIPTION', 60, 616, 9.5, 'F2', 0.2, 0.25, 0.35);
+  text('QTY / RATE', 310, 616, 9.5, 'F2', 0.2, 0.25, 0.35);
+  text('AMOUNT (INR)', 445, 616, 9.5, 'F2', 0.2, 0.25, 0.35);
+
+  let y = 582;
+  const items = [
+    { desc: 'EV Electric Energy Delivered', qty: h.kwh.toFixed(2) + ' kWh @ Rs ' + RATE.toFixed(2), amt: 'Rs ' + h.e.toFixed(2) },
+    { desc: 'Session Booking & Service Fee', qty: '1 Session', amt: 'Rs ' + h.f.toFixed(2) }
+  ];
+
+  items.forEach(it => {
+    text(it.desc, 60, y, 10, 'F1', 0.1, 0.15, 0.2);
+    text(it.qty, 310, y, 9.5, 'F1', 0.3, 0.35, 0.4);
+    text(it.amt, 445, y, 10, 'F2', 0.1, 0.15, 0.2);
+    line(50, y - 9, 545, y - 9, 0.5, 0.9, 0.92, 0.95);
+    y -= 28;
+  });
+
+  y -= 14;
+  text('Taxable Subtotal:', 320, y, 9.5, 'F1', 0.3, 0.35, 0.4);
+  text('Rs ' + (h.e + h.f).toFixed(2), 445, y, 10, 'F1', 0.1, 0.15, 0.2);
+  y -= 18;
+  text('Central GST (CGST 9%):', 320, y, 9.5, 'F1', 0.3, 0.35, 0.4);
+  text('Rs ' + (h.g / 2).toFixed(2), 445, y, 10, 'F1', 0.1, 0.15, 0.2);
+  y -= 18;
+  text('State GST (SGST 9%):', 320, y, 9.5, 'F1', 0.3, 0.35, 0.4);
+  text('Rs ' + (h.g / 2).toFixed(2), 445, y, 10, 'F1', 0.1, 0.15, 0.2);
+
+  const boxTop = y - 16;
+  const boxH = 34;
+  const boxY = boxTop - boxH;
+  rect(280, boxY, 265, boxH, 0.94, 0.97, 1.0);
+  line(280, boxY, 545, boxY, 1.2, 0.15, 0.39, 0.92);
+  line(280, boxTop, 545, boxTop, 1.2, 0.15, 0.39, 0.92);
+  line(280, boxY, 280, boxTop, 1.2, 0.15, 0.39, 0.92);
+  line(545, boxY, 545, boxTop, 1.2, 0.15, 0.39, 0.92);
+  text('GRAND TOTAL (PAID):', 295, boxY + 11, 10.5, 'F2', 0.15, 0.39, 0.92);
+  text('INR ' + h.tot.toFixed(2), 440, boxY + 11, 12.5, 'F2', 0.15, 0.39, 0.92);
+
+  line(50, 110, 545, 110, 0.5, 0.85, 0.88, 0.92);
+  text('PAYMENT STATUS: COMPLETED & SETTLED', 50, 92, 10, 'F2', 0.08, 0.6, 0.25);
+  text('Payment Mode: Digital Wallet / Auto-Debit  |  Rule Engine: FIFO Priority Allocation', 50, 78, 8.5, 'F1', 0.4, 0.45, 0.5);
+  text('This is a computer-generated tax invoice verified by EV ChargeFlow Billing Subsystem.', 50, 64, 8, 'F1', 0.5, 0.55, 0.6);
+  text('Questions? Contact accounts@chargeflow.in or call +91-1800-EV-POWER.', 50, 50, 8, 'F1', 0.55, 0.6, 0.65);
+
+  const blob = makePDF(ops);
+  downloadPDF(blob, `Invoice_INV-${h.id}_${u.name.replace(/\s+/g,'_')}.pdf`);
+  toast('Invoice PDF Downloaded', 'Saved Invoice #INV-' + h.id + '.pdf', 'ok');
+}
+
+function downloadStatementPDF(){
+  const mine = S.hist.filter(isMine).filter(h=>h.status=='COMPLETED');
+  if(!mine.length)return toast('No completed sessions','Nothing to download yet.','warn');
+  const u = S.me || {name:'EV Driver',email:'driver@chargeflow.in'};
+  const totKwh = mine.reduce((s,x)=>s+x.kwh,0);
+  const totPaid = mine.reduce((s,x)=>s+x.tot,0);
+  const ops=[];
+  const esc=s=>String(s).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
+  const text=(str,x,y,size=10,font='F1',r=0,g=0,b=0)=>{
+    ops.push(`${r} ${g} ${b} rg BT /${font} ${size} Tf ${x.toFixed(2)} ${y.toFixed(2)} Td (${esc(str)}) Tj ET`);
+  };
+  const line=(x1,y1,x2,y2,lw=1,r=.8,g=.85,b=.9)=>{
+    ops.push(`${r} ${g} ${b} RG ${lw} w ${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l S`);
+  };
+  const rect=(x,y,w,lh,r,g,b)=>{
+    ops.push(`${r} ${g} ${b} rg ${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${lh.toFixed(2)} re f`);
+  };
+
+  rect(0, 740, 595.28, 101.89, 0.04, 0.07, 0.13);
+  rect(0, 735, 595.28, 5, 0.15, 0.39, 0.92);
+
+  text('EV CHARGEFLOW', 50, 785, 20, 'F2', 1, 1, 1);
+  text('CUSTOMER BILLING STATEMENT', 50, 765, 10, 'F1', 0.02, 0.71, 0.83);
+  text('Account: ' + u.name, 340, 790, 9.5, 'F1', 0.8, 0.85, 0.9);
+  text('Email: ' + (u.email||'driver@demo.in'), 340, 777, 9, 'F1', 0.8, 0.85, 0.9);
+  text('Generated: ' + clock(), 340, 764, 9, 'F1', 0.8, 0.85, 0.9);
+
+  rect(50, 665, 495, 52, 0.96, 0.97, 0.99);
+  line(50, 665, 545, 665, 1, 0.88, 0.9, 0.94);
+  text('TOTAL SESSIONS', 70, 700, 8.5, 'F2', 0.4, 0.45, 0.55);
+  text(String(mine.length) + ' completed', 70, 680, 13, 'F2', 0.04, 0.07, 0.13);
+
+  text('TOTAL ENERGY', 230, 700, 8.5, 'F2', 0.4, 0.45, 0.55);
+  text(totKwh.toFixed(1) + ' kWh', 230, 680, 13, 'F2', 0.04, 0.07, 0.13);
+
+  text('TOTAL SPENT (INCL GST)', 390, 700, 8.5, 'F2', 0.4, 0.45, 0.55);
+  text('INR ' + totPaid.toFixed(2), 390, 680, 13, 'F2', 0.15, 0.39, 0.92);
+
+  rect(50, 625, 495, 22, 0.94, 0.95, 0.98);
+  text('INV #', 60, 632, 9, 'F2', 0.2, 0.25, 0.35);
+  text('DATE / TIME', 115, 632, 9, 'F2', 0.2, 0.25, 0.35);
+  text('BAY', 240, 632, 9, 'F2', 0.2, 0.25, 0.35);
+  text('ENERGY', 315, 632, 9, 'F2', 0.2, 0.25, 0.35);
+  text('AMOUNT', 410, 632, 9, 'F2', 0.2, 0.25, 0.35);
+  text('STATUS', 485, 632, 9, 'F2', 0.2, 0.25, 0.35);
+
+  let y = 604;
+  mine.slice(0, 18).forEach(h => {
+    text('#' + h.id, 60, y, 9, 'F2', 0.15, 0.39, 0.92);
+    text(h.when, 115, y, 9, 'F1', 0.2, 0.25, 0.3);
+    text(h.code, 240, y, 9, 'F1', 0.2, 0.25, 0.3);
+    text(h.kwh.toFixed(1) + ' kWh', 315, y, 9, 'F1', 0.2, 0.25, 0.3);
+    text('INR ' + h.tot.toFixed(2), 410, y, 9.5, 'F2', 0.1, 0.15, 0.2);
+    text('PAID', 485, y, 8.5, 'F2', 0.08, 0.6, 0.25);
+    line(50, y - 6, 545, y - 6, 0.5, 0.9, 0.92, 0.95);
+    y -= 22;
+  });
+
+  line(50, 90, 545, 90, 0.5, 0.85, 0.88, 0.92);
+  text('EV ChargeFlow Driver Account Statement  |  Electronic Receipt Copy', 50, 72, 8.5, 'F1', 0.45, 0.5, 0.55);
+  text('Billing Rate: Energy Rs 18.00/kWh + Rs 25.00 Service Fee + 18% GST', 50, 58, 8, 'F1', 0.5, 0.55, 0.6);
+
+  const blob = makePDF(ops);
+  downloadPDF(blob, `Statement_${u.name.replace(/\s+/g,'_')}.pdf`);
+  toast('Statement PDF Downloaded', 'Saved Billing Statement.pdf', 'ok');
+}
+
+function downloadReportPDF(){
+  const all = S.hist.filter(h=>h.status=='COMPLETED');
+  const tot = S.rev.reduce((s,r)=>s+r[1],0)+1840;
+  const en = S.rev.reduce((s,r)=>s+r[2],0);
+  const ops=[];
+  const esc=s=>String(s).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
+  const text=(str,x,y,size=10,font='F1',r=0,g=0,b=0)=>{
+    ops.push(`${r} ${g} ${b} rg BT /${font} ${size} Tf ${x.toFixed(2)} ${y.toFixed(2)} Td (${esc(str)}) Tj ET`);
+  };
+  const line=(x1,y1,x2,y2,lw=1,r=.8,g=.85,b=.9)=>{
+    ops.push(`${r} ${g} ${b} RG ${lw} w ${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l S`);
+  };
+  const rect=(x,y,w,lh,r,g,b)=>{
+    ops.push(`${r} ${g} ${b} rg ${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${lh.toFixed(2)} re f`);
+  };
+
+  rect(0, 740, 595.28, 101.89, 0.04, 0.07, 0.13);
+  rect(0, 735, 595.28, 5, 0.15, 0.39, 0.92);
+
+  text('EV CHARGEFLOW', 50, 785, 20, 'F2', 1, 1, 1);
+  text('STATION REVENUE & BILLING AUDIT REPORT', 50, 765, 10, 'F1', 0.02, 0.71, 0.83);
+  text('Report Scope: 7-Day Operations', 340, 790, 9.5, 'F1', 0.8, 0.85, 0.9);
+  text('Generated: Today ' + clock(), 340, 777, 9, 'F1', 0.8, 0.85, 0.9);
+  text('Operator: Station Administrator', 340, 764, 9, 'F1', 0.8, 0.85, 0.9);
+
+  rect(50, 660, 495, 56, 0.96, 0.97, 0.99);
+  line(50, 660, 545, 660, 1, 0.88, 0.9, 0.94);
+
+  text('7-DAY REVENUE', 65, 698, 8, 'F2', 0.4, 0.45, 0.55);
+  text('INR ' + Math.round(tot).toLocaleString('en-IN'), 65, 678, 12, 'F2', 0.15, 0.39, 0.92);
+
+  text('ENERGY DELIVERED', 190, 698, 8, 'F2', 0.4, 0.45, 0.55);
+  text(Math.round(en) + ' kWh', 190, 678, 12, 'F2', 0.04, 0.07, 0.13);
+
+  text('COMPLETED SESSIONS', 325, 698, 8, 'F2', 0.4, 0.45, 0.55);
+  text(String(all.length + 96), 325, 678, 12, 'F2', 0.04, 0.07, 0.13);
+
+  text('ACTIVE BAYS', 450, 698, 8, 'F2', 0.4, 0.45, 0.55);
+  text(S.chargers.length + ' Chargers', 450, 678, 12, 'F2', 0.04, 0.07, 0.13);
+
+  text('DAILY REVENUE BREAKDOWN (LAST 7 DAYS)', 50, 638, 9.5, 'F2', 0.15, 0.39, 0.92);
+  rect(50, 612, 495, 20, 0.94, 0.95, 0.98);
+  text('DAY', 60, 618, 9, 'F2', 0.2, 0.25, 0.35);
+  text('ENERGY (kWh)', 210, 618, 9, 'F2', 0.2, 0.25, 0.35);
+  text('REVENUE (INR INCL GST)', 380, 618, 9, 'F2', 0.2, 0.25, 0.35);
+
+  let y = 594;
+  S.rev.forEach(r => {
+    text(r[0], 60, y, 9, 'F1', 0.2, 0.25, 0.3);
+    text(r[2] + ' kWh', 210, y, 9, 'F1', 0.2, 0.25, 0.3);
+    text('INR ' + r[1].toLocaleString('en-IN'), 380, y, 9.5, 'F2', 0.1, 0.15, 0.2);
+    line(50, y - 5, 545, y - 5, 0.5, 0.9, 0.92, 0.95);
+    y -= 19;
+  });
+
+  y -= 14;
+  text('RECENT COMPLETED INVOICES AUDIT', 50, y, 9.5, 'F2', 0.15, 0.39, 0.92);
+  const thTop = y - 8;
+  const thH = 20;
+  const thY = thTop - thH;
+  rect(50, thY, 495, thH, 0.94, 0.95, 0.98);
+  text('INV #', 60, thY + 6, 9, 'F2', 0.2, 0.25, 0.35);
+  text('CUSTOMER', 115, thY + 6, 9, 'F2', 0.2, 0.25, 0.35);
+  text('BAY', 230, thY + 6, 9, 'F2', 0.2, 0.25, 0.35);
+  text('ENERGY', 295, thY + 6, 9, 'F2', 0.2, 0.25, 0.35);
+  text('SUBTOTAL', 370, thY + 6, 9, 'F2', 0.2, 0.25, 0.35);
+  text('TOTAL (INR)', 460, thY + 6, 9, 'F2', 0.2, 0.25, 0.35);
+
+  y = thY - 16;
+  all.slice(0, 10).forEach(h => {
+    text('#' + h.id, 60, y, 8.5, 'F2', 0.15, 0.39, 0.92);
+    text(h.name, 115, y, 8.5, 'F1', 0.2, 0.25, 0.3);
+    text(h.code, 230, y, 8.5, 'F1', 0.2, 0.25, 0.3);
+    text(h.kwh.toFixed(1) + ' kWh', 295, y, 8.5, 'F1', 0.2, 0.25, 0.3);
+    text('INR ' + (h.e + h.f).toFixed(1), 370, y, 8.5, 'F1', 0.2, 0.25, 0.3);
+    text('INR ' + h.tot.toFixed(2), 460, y, 9, 'F2', 0.1, 0.15, 0.2);
+    line(50, y - 5, 545, y - 5, 0.5, 0.9, 0.92, 0.95);
+    y -= 18;
+  });
+
+  line(50, 75, 545, 75, 0.5, 0.85, 0.88, 0.92);
+  text('EV ChargeFlow Administrator Billing Audit Report  |  Confidential Station Document', 50, 60, 8.5, 'F1', 0.45, 0.5, 0.55);
+  text('Total Includes 18% GST (CGST 9% + SGST 9%) and Flat Rs 25.00 Reservation/Session Fee', 50, 48, 8, 'F1', 0.5, 0.55, 0.6);
+
+  const blob = makePDF(ops);
+  downloadPDF(blob, 'EV_ChargeFlow_Station_Billing_Report.pdf');
+  toast('Report PDF Downloaded', 'Station billing report saved as PDF.', 'ok');
+}
+
+function printInvoice(id){
+  const h=S.hist.find(x=>x.id==id);
+  if(!h)return;
+  const u=S.users.find(x=>x.id==h.uid)||{name:h.name||'Customer',email:'customer@chargeflow.in'};
+  const c=S.chargers.find(x=>x.code==h.code)||{loc:'Bay · Fast Charger',kw:60};
+  const w=window.open('','_blank','width=720,height=800');
+  if(!w)return toast('Popup blocked','Please allow popups to print.','warn');
+  w.document.write(`<!DOCTYPE html><html><head><title>Invoice #${h.id} - EV ChargeFlow</title><style>
+    body{font-family:Inter,system-ui,sans-serif;margin:40px;color:#0B1220;background:#fff}
+    .hdr{border-bottom:3px solid #2563EB;padding-bottom:18px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-end}
+    .hdr h1{font-family:Manrope,sans-serif;margin:0;font-size:26px;color:#2563EB}
+    .meta{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px}
+    table{width:100%;border-collapse:collapse;margin:24px 0}
+    th{background:#F1F5F9;text-align:left;padding:10px 12px;font-size:12px;color:#475569;border-bottom:1px solid #CBD5E1}
+    td{padding:12px;border-bottom:1px solid #E2E8F0;font-size:13px}
+    .tot{background:#EFF6FF;padding:16px;border-radius:10px;text-align:right;margin-top:12px;border:1px solid #BFDBFE}
+    .tot b{font-size:20px;color:#2563EB;font-family:Manrope}
+    .foot{margin-top:40px;border-top:1px solid #E2E8F0;padding-top:14px;color:#64748B;font-size:11px}
+    @media print{button{display:none}}
+  </style></head><body>
+    <div class="hdr"><div><h1>⚡ EV ChargeFlow</h1><p style="margin:4px 0 0;color:#64748B;font-size:12px">Tax Invoice / Charging Receipt</p></div><div style="text-align:right"><h3 style="margin:0">#INV-${h.id}</h3><small style="color:#64748B">${h.when}</small></div></div>
+    <div class="meta"><div><b style="color:#64748B;font-size:11px">CUSTOMER:</b><br><b>${u.name}</b><br><small style="color:#64748B">${u.email}</small></div><div><b style="color:#64748B;font-size:11px">STATION BAY:</b><br><b>${h.code}</b><br><small style="color:#64748B">${c.loc}</small></div></div>
+    <table><tr><th>Description</th><th>Quantity / Rate</th><th style="text-align:right">Amount</th></tr>
+    <tr><td>Electric Energy Delivered</td><td>${h.kwh.toFixed(2)} kWh @ ₹${RATE}/kWh</td><td style="text-align:right">${inr(h.e)}</td></tr>
+    <tr><td>Station Session & Booking Fee</td><td>1 Session</td><td style="text-align:right">${inr(h.f)}</td></tr>
+    <tr><td>CGST (9%)</td><td>9% on Taxable</td><td style="text-align:right">${inr(h.g/2)}</td></tr>
+    <tr><td>SGST (9%)</td><td>9% on Taxable</td><td style="text-align:right">${inr(h.g/2)}</td></tr>
+    </table>
+    <div class="tot"><span style="font-size:14px;margin-right:12px">Grand Total:</span><b>${inr(h.tot)}</b><div style="color:#16A34A;font-size:11px;font-weight:600;margin-top:4px">STATUS: PAID & COMPLETED</div></div>
+    <div class="foot">Thank you for charging with EV ChargeFlow. GSTIN: 27AAAAA0000A1Z5. Electronically generated invoice.</div>
+    <br><center><button onclick="window.print()" style="padding:10px 20px;background:#2563EB;color:#fff;border:0;border-radius:8px;font-weight:600;cursor:pointer">Print / Save as PDF</button></center>
+    <script>setTimeout(()=>window.print(),300);<\/script>
+  </body></html>`);
+  w.document.close();
+}
+
+/* ---------- Judge Live Demo Scenarios ---------- */
+let demoT1 = null, demoT2 = null, demoT3 = null;
+function clearDemoTimers(){
+  clearTimeout(demoT1);
+  clearTimeout(demoT2);
+  clearTimeout(demoT3);
+  demoT1 = demoT2 = demoT3 = null;
+}
+
+function runSimultaneousDemo(){
+  clearDemoTimers();
+
+  if(!S.me){ S.me = S.users[0]; S.role = 'user'; }
+  location.hash = '#/queue';
+  const v = $('#view');
+  if(v){ v.innerHTML = P.queue(); enter(); }
+
+  // Set all chargers busy so both drivers wait in the queue first
+  S.chargers.forEach(c => {
+    if(c.status == 'AVAILABLE') c.status = 'CHARGING';
+  });
+
+  // Clear any existing Aarav, Priya, or Rohan requests
+  S.queue = S.queue.filter(q => q.uid != 1 && q.uid != 7 && q.uid != 3);
+  S.bk = S.bk.filter(b => b.uid != 1 && b.uid != 7 && b.uid != 3);
+
+  // Step 1: Add both Aarav and Dr. Priya into the queue together (10s grace period)
+  // Both are visibly queued so judges see clear evidence of Dr. Priya in queue
+  const aarav = { id: ++S.id, uid: 1, name: 'Aarav Mehta', pri: 1, kwh: 22, at: 1, t0: T };
+  const priya = { id: ++S.id, uid: 7, name: 'Dr. Priya (Emergency Medical)', pri: 1, kwh: 28, at: 2, t0: T };
+
+  S.queue = [aarav, priya];
+  refresh();
+
+  toast('⚡ Step 1/4 (0s)', 'Aarav (#1) & Dr. Priya (#2) added to queue (10s grace period).', 'warn');
+
+  // STEP 2: At 10s full grace, Dr. Priya given Emergency Priority -> Bay C-01 allocated
+  demoT1 = setTimeout(() => {
+    priya.pri = 3; // Emergency Priority activated
+
+    // Charger C-01 (60 kW DC) completes charging and becomes available
+    const c1 = S.chargers[0];
+    const prevBk = S.bk.find(x => x.ch == c1.id);
+    if(prevBk) prevBk.status = 'COMPLETED';
+    c1.status = 'AVAILABLE';
+    c1.bk = null;
+
+    allocate(); // Rule engine prioritizes Dr. Priya for Bay C-01
+
+    // Make all other chargers busy and high target so Aarav stays in queue for 1 min
+    S.chargers.forEach((c, idx) => {
+      if(idx > 0 && c.status != 'OUT_OF_SERVICE'){
+        c.status = 'CHARGING';
+        const b = S.bk.find(x => x.ch == c.id);
+        if(b){ b.status = 'CHARGING'; b.got = 5; b.target = 50; }
+      }
+    });
+
+    refresh();
+    toast('⚡ Step 2/4 (10s)', 'Dr. Priya prioritized to Bay C-01! Aarav waiting at #1 (Next bay in 25s).', 'ok');
+
+    // STEP 3: When 15s have passed (15s after Priya is allocated), enter another person at #2 with same priority
+    demoT2 = setTimeout(() => {
+      const rohan = { id: ++S.id, uid: 3, name: 'Rohan Iyer', pri: 1, kwh: 26, at: ++S.seq, t0: T };
+      S.queue.push(rohan);
+      refresh();
+      toast('⚡ Step 3/4 (+15s)', 'Rohan Iyer joined queue at #2 (Same Standard priority as Aarav).', 'ok');
+    }, 15000);
+
+    // STEP 4: At 25s after Priya is allocated, Bay C-02 opens and Aarav is allocated!
+    demoT3 = setTimeout(() => {
+      const c2 = S.chargers[1];
+      const prevBk2 = S.bk.find(x => x.ch == c2.id);
+      if(prevBk2) prevBk2.status = 'COMPLETED';
+      c2.status = 'AVAILABLE';
+      c2.bk = null;
+
+      allocate(); // Aarav gets Bay C-02
+      refresh();
+      toast('⚡ Step 4/4 (25s)', 'Bay C-02 available! Allocated to Aarav Mehta. Rohan is now #1.', 'ok');
+    }, 25000);
+
+  }, 10000);
+}
+
+function runReallocationDemo(){
+  clearDemoTimers();
+
+  if(!S.me){ S.me = S.users[0]; S.role = 'user'; }
+  location.hash = '#/dashboard';
+  const v = $('#view');
+  if(v){ v.innerHTML = P.dashboard(); enter(); }
+
+  // Set all chargers busy
+  S.chargers[0].status = 'CHARGING'; // C-01
+  S.chargers[1].status = 'CHARGING'; // C-02
+  S.chargers[2].status = 'CHARGING'; // C-03
+  S.chargers[3].status = 'CHARGING'; // C-04
+  S.chargers[4].status = 'CHARGING'; // C-05
+  S.chargers[5].status = 'OUT_OF_SERVICE'; // C-06
+
+  // Clear any existing bookings for demo drivers
+  S.bk = S.bk.filter(b => b.uid != 1 && b.uid != 3 && b.uid != 4 && b.uid != 5);
+
+  // STEP 1: Rohan in queue for 10s. Vikram is at 2nd, Aarav at 3rd, Sana at 4th
+  const rohanQ = { id: ++S.id, uid: 3, name: 'Rohan Iyer', pri: 1, kwh: 24, at: 1, t0: T };
+  const vikramQ = { id: ++S.id, uid: 5, name: 'Vikram Rao', pri: 1, kwh: 20, at: 2, t0: T, noShow: true };
+  const meAarav = { id: ++S.id, uid: 1, name: 'Aarav Mehta', pri: 1, kwh: 22, at: 3, t0: T };
+  const sana = { id: ++S.id, uid: 4, name: 'Sana Khan', pri: 1, kwh: 26, at: 4, t0: T };
+
+  S.queue = [rohanQ, vikramQ, meAarav, sana];
+  refresh();
+
+  toast('🔄 Step 1/3 (0s)', 'Rohan in queue (10s). Vikram #2, You #3, Sana #4.', 'warn');
+
+  // STEP 2: At 10s:
+  // - Rohan is allocated C-01 and starts charging
+  // - Vikram is allocated C-03 with 20s arrival window
+  // - In queue: You are #1, Sana is #2
+  demoT1 = setTimeout(() => {
+    const c1 = S.chargers[0];
+    const rohanBk = { id: ++S.id, uid: 3, name: 'Rohan Iyer', ch: c1.id, target: 24, got: 2, status: 'CHARGING', pri: 1, res: T, deadline: T + 1200, t0: T };
+    c1.status = 'CHARGING';
+    c1.bk = rohanBk.id;
+    S.bk.push(rohanBk);
+    S.queue = S.queue.filter(q => q.uid != 3);
+
+    const c3 = S.chargers[2];
+    const vikramBk = { id: ++S.id, uid: 5, name: 'Vikram Rao', ch: c3.id, target: 20, got: 0, status: 'PENDING_ARRIVAL', pri: 1, res: T, deadline: T + 200, noShow: true };
+    c3.status = 'RESERVED';
+    c3.bk = vikramBk.id;
+    S.bk.push(vikramBk);
+    S.queue = S.queue.filter(q => q.uid != 5);
+
+    refresh();
+    toast('🔄 Step 2/3 (10s)', 'Rohan charging at C-01. Vikram allocated C-03 (20s arrival window).', 'warn');
+
+    // STEP 3: At 20s: Vikram misses slot -> C-03 reallocated to You, Sana comes to #1
+    demoT2 = setTimeout(() => {
+      vikramBk.status = 'EXPIRED';
+      S.bk = S.bk.filter(b => b.id != vikramBk.id);
+      S.hist.unshift(inv({ id: vikramBk.id, uid: 5, name: 'Vikram Rao', code: 'C-03', when: 'Today ' + clock(), kwh: 0, status: 'EXPIRED' }));
+
+      // Bay C-03 dynamically allocated to You (Aarav Mehta)
+      const myBk = { id: ++S.id, uid: 1, name: 'Aarav Mehta', ch: c3.id, target: 22, got: 0, status: 'PENDING_ARRIVAL', pri: 1, res: T, deadline: T + GRACE };
+      c3.status = 'RESERVED';
+      c3.bk = myBk.id;
+      S.bk.push(myBk);
+      S.queue = S.queue.filter(q => q.uid != 1);
+
+      // Sana comes to #1
+      refresh();
+      toast('🔄 Step 3/3 (20s)', 'Vikram missed arrival! C-03 reallocated to You. Sana is now #1!', 'ok');
+
+    }, 20000);
+
+  }, 10000);
+}
+/* ---------- landing, auth, router ---------- */
+W.lboard=()=>W.board();
+const landing=()=>`<div class="land"><div class="lnav"><div class="logo">${mark()}EV ChargeFlow</div><div><a href="#/login">Sign in</a><a class="btn" href="#/login">Get started</a></div></div>
+<section class="hero"><div><h1>Plug in. The station picks your bay.</h1><p>Request a charge and ChargeFlow assigns a free charger by priority and arrival order. If someone doesn't show up, the next driver moves in automatically.</p><a class="btn" href="#/login">Request a charge</a></div>
+<div class="card"><h3>Live station</h3>${L('lboard')}</div></section>
+<section class="sec"><h2>How a request moves through the station</h2><div class="steps"><div class="card hov"><h4><b>1</b> Request</h4><p>Choose your vehicle, target charge and priority.</p></div><div class="card hov"><h4><b>2</b> Allocate</h4><p>Emergency and Premium requests get the fastest free charger.</p></div><div class="card hov"><h4><b>3</b> Arrive</h4><p>You have 5 minutes to plug in before the slot passes on.</p></div><div class="card hov"><h4><b>4</b> Charge and pay</h4><p>Watch live progress, then get an itemised bill.</p></div></div>
+<div style="margin-top:28px" class="formula">Total = (<span>kWh × ₹18</span> + <span>₹25 service fee</span>) + <span>18% GST</span></div></section><div class="foot">EV ChargeFlow · Rule-based scheduling, no AI or GPS</div></div>`;
+W.lboard=()=>W.board();
+let mode='in';
+const loginPg=()=>`<div class="auth"><div class="card"><div class="logo" style="padding:0 0 6px;color:var(--navy)">${mark()}EV ChargeFlow</div><div class="tabs"><button class="${mode=='in'?'on':''}" onclick="mode='in';route()">Sign in</button><button class="${mode=='up'?'on':''}" onclick="mode='up';route()">Register</button></div>
+${mode=='up'?'<label>Full name</label><input id="nm" placeholder="Your name">':''}<label>Email</label><input id="em" value="aarav@demo.in"><label>Password</label><input type="password" value="demo1234"><button class="btn wide" style="margin-top:20px" onclick="auth()">${mode=='up'?'Create account':'Sign in'}</button>
+<small style="margin-top:16px;text-align:center">Demo data only. Nothing is sent anywhere.</small></div></div>`;
+function auth(adm){const em=$('#em').value||'aarav@demo.in',nm=$('#nm')&&$('#nm').value.trim();
+ if(adm||/admin/i.test(em)){S.me={id:0,name:'Station Admin'};S.role='admin';location.hash='#/admin'}
+ else{let u=S.users.find(x=>x.email==em);if(mode=='up'){if(!nm)return toast('Enter your name','Registration needs a full name.','warn');u={id:++S.id,name:nm,email:em,joined:'Today'};S.users.push(u);S.notes.unshift({uid:u.id,t:'Welcome, '+nm.split(' ')[0],m:'Request charging to get started.',read:0})}
+  S.me=u||S.users[0];S.role='user';location.hash='#/dashboard'}
+ toast('Signed in as '+S.me.name,'','ok')}
+const NAV={user:[['dashboard','Dashboard'],['request','Request charging'],['queue','Queue status'],['active','Active charging'],['billing','Billing'],['history','History'],['notifications','Notifications']],admin:[['admin','Dashboard'],['walkin','Walk-in customer'],['chargers','Charger management'],['queuemgmt','Queue management'],['reports','Reports']]};
+const shell=(n,t,b)=>`<div class="shell"><aside id="sb"><div class="logo">${mark()}EV ChargeFlow</div><nav>${NAV[S.role].map(([k,l])=>`<a href="#/${k}" class="${k==n?'on':''}">${l}</a>`).join('')}</nav><div class="uchip"><b>${S.me.name}</b><small>${S.role=='admin'?'Operator':'Driver'}</small><a href="#/landing" onclick="S.me=null">Sign out</a></div></aside><main><header class="top"><button class="menu" onclick="$('#sb').classList.toggle('open')">Menu</button><h2>${t}</h2><div class="tr" data-live="top">${W.top()}</div></header><div id="view" class="page">${b}</div></main></div>`;
+const TT={dashboard:'Dashboard',request:'Request charging',queue:'Queue status',active:'Active charging',billing:'Billing',history:'Charging history',notifications:'Notifications',admin:'Admin dashboard',walkin:'Walk-in customer',chargers:'Charger management',queuemgmt:'Queue management',reports:'Reports'};
+const skel=()=>'<div class="grid k4">'+'<div class="card sk"></div>'.repeat(4)+'</div><div class="card sk tall"></div>';
+function route(){clearTimeout(rt);const n=location.hash.replace('#/','')||'landing',app=$('#app');
+ if(n=='landing'){app.innerHTML=landing();return enter()}
+ if(n=='login'){app.innerHTML=loginPg();return enter()}
+ const admPage=['admin','walkin','chargers','queuemgmt','reports'].includes(n);
+ if(!P[n]||!S.me||admPage!=(S.role=='admin')){location.hash=S.me?(S.role=='admin'?'#/admin':'#/dashboard'):'#/login';return}
+ app.innerHTML=shell(n,TT[n],skel());rt=setTimeout(()=>{$('#view').innerHTML=P[n]();enter();if(n=='request')calc()},350)}
+addEventListener('hashchange',route);route();
+setInterval(tick,1000);
+</script></body></html>
