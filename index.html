@@ -151,11 +151,24 @@ const pill=s=>`<span class="pill ${s}"><i style="animation-delay:-${(Date.now()%
 const mark=()=>'<span class="mk">⚡</span>';
 
 /* ---------- SUPABASE CLIENT & DATABASE PERSISTENCE LAYER ---------- */
-let sbUrl = localStorage.getItem('chargeflow_sb_url') || '';
-let sbKey = localStorage.getItem('chargeflow_sb_key') || '';
+function formatSupabaseUrl(input) {
+  if (!input) return '';
+  let u = input.trim();
+  const dashMatch = u.match(/supabase\.com\/dashboard\/project\/([a-z0-9_-]+)/i);
+  if (dashMatch) return 'https://' + dashMatch[1] + '.supabase.co';
+  const dbMatch = u.match(/db\.([a-z0-9_-]+)\.supabase\.co/i);
+  if (dbMatch) return 'https://' + dbMatch[1] + '.supabase.co';
+  if (/^[a-z0-9]{15,30}$/i.test(u)) return 'https://' + u + '.supabase.co';
+  if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+  return u.replace(/\/+$/, '');
+}
+
+let sbUrl = formatSupabaseUrl(localStorage.getItem('chargeflow_sb_url') || '');
+let sbKey = (localStorage.getItem('chargeflow_sb_key') || '').trim();
 let sbClient = null;
 
 function initSupabase() {
+  sbUrl = formatSupabaseUrl(sbUrl);
   if (window.supabase && sbUrl && sbKey) {
     try {
       sbClient = window.supabase.createClient(sbUrl, sbKey);
@@ -1271,6 +1284,10 @@ function openSupabaseConfig() {
 
       <label>Supabase Project URL</label>
       <input id="cfgSbUrl" placeholder="https://xyzprojectref.supabase.co" value="${curUrl}">
+      <small style="color:#64748B;display:block;margin:4px 0 10px;font-size:11px">
+        Expected format: <code>https://&lt;your-ref&gt;.supabase.co</code> (found in Settings → API).
+        <br><i>Tip: If you paste the dashboard URL, the app will auto-convert it.</i>
+      </small>
 
       <label>Supabase Anon Public API Key</label>
       <input id="cfgSbKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." value="${curKey}">
@@ -1291,8 +1308,12 @@ function openSupabaseConfig() {
 }
 
 function saveSupabaseConfig() {
-  const u = ($('#cfgSbUrl')?.value || '').trim();
+  let u = ($('#cfgSbUrl')?.value || '').trim();
   const k = ($('#cfgSbKey')?.value || '').trim();
+  u = formatSupabaseUrl(u);
+  if (u && !u.includes('.supabase.co') && !u.startsWith('http')) {
+    return toast('Invalid Supabase URL', 'URL must look like https://xyz.supabase.co', 'warn');
+  }
   localStorage.setItem('chargeflow_sb_url', u);
   localStorage.setItem('chargeflow_sb_key', k);
   sbUrl = u;
@@ -1304,15 +1325,20 @@ function saveSupabaseConfig() {
 }
 
 async function testSupabaseConnection() {
-  const u = ($('#cfgSbUrl')?.value || '').trim();
+  let u = ($('#cfgSbUrl')?.value || '').trim();
   const k = ($('#cfgSbKey')?.value || '').trim();
   if (!u || !k) return toast('Missing Fields', 'Please enter both Supabase URL and Anon Key.', 'warn');
+  
+  u = formatSupabaseUrl(u);
+  const urlInput = $('#cfgSbUrl');
+  if (urlInput) urlInput.value = u;
+
   if (!window.supabase) return toast('Supabase Library Error', 'Supabase JS CDN is not reachable.', 'warn');
   try {
     const testClient = window.supabase.createClient(u, k);
     const { data, error } = await testClient.from('chargers').select('count').limit(1);
     if (error && !error.message.includes('relation "chargers" does not exist')) throw error;
-    toast('Connection Successful! 🟢', 'Successfully contacted Supabase Project.', 'ok');
+    toast('Connection Successful! 🟢', 'Successfully contacted Supabase Project: ' + u, 'ok');
   } catch (err) {
     toast('Connection Notice', err.message || 'Check your URL & Key.', 'warn');
   }
