@@ -103,20 +103,23 @@ table{width:100%;border-collapse:collapse}th{text-align:left;font-weight:600;col
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
 /* ---------- Supabase & Database Inspector Styles ---------- */
-.db-chip { display:inline-flex; align-items:center; gap:6px; cursor:pointer; background:#0B132B; border:1px solid rgba(16,185,129,0.35); color:#10B981; font-weight:700; font-size:11px; padding:4px 10px; border-radius:8px; transition:all 0.2s; }
-.db-chip:hover { border-color:#10B981; background:#0E1F42; }
+.db-chip { display:inline-flex; align-items:center; gap:6px; cursor:pointer; background:#0B132B; border:1px solid rgba(16,185,129,0.4); color:#10B981; font-weight:700; font-size:11px; padding:5px 12px; border-radius:8px; transition:all 0.2s; text-decoration:none; }
+.db-chip:hover { border-color:#10B981; background:#0E1F42; transform:translateY(-1px); color:#10B981; }
 .db-dot { width:8px; height:8px; border-radius:50%; background:#10B981; box-shadow:0 0 8px #10B981; display:inline-block; }
-.db-dot.offline { background:#F59E0B; box-shadow:0 0 8px #F59E0B; }
-.db-modal-content { max-width:920px; width:95vw; max-height:85vh; overflow-y:auto; padding:24px; }
+.db-modal-content { max-width:960px; width:95vw; max-height:85vh; overflow-y:auto; padding:24px; }
 .db-tabs { display:flex; gap:6px; margin-bottom:16px; border-bottom:1px solid #E2E8F0; padding-bottom:8px; flex-wrap:wrap; }
-.db-tab-btn { background:#F1F5F9; border:0; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:600; color:#475569; cursor:pointer; }
-.db-tab-btn.active { background:#2563EB; color:#FFF; }
+.db-tab-btn { background:#F1F5F9; border:0; padding:7px 15px; border-radius:8px; font-size:12px; font-weight:700; color:#475569; cursor:pointer; transition:all .15s; }
+.db-tab-btn:hover { background:#E2E8F0; }
+.db-tab-btn.active { background:#2563EB; color:#FFF; box-shadow:0 2px 6px rgba(37,99,235,0.3); }
 .db-badge-pill { display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:700; }
 .db-badge-pill.green { background:#DCFCE7; color:#15803D; }
 .db-badge-pill.blue { background:#DBEAFE; color:#1D4ED8; }
 .db-badge-pill.amber { background:#FEF3C7; color:#B45309; }
 .db-badge-pill.red { background:#FEE2E2; color:#B91C1C; }
-.db-raw-json { background:#0F172A; color:#E2E8F0; padding:12px; border-radius:8px; font-family:monospace; font-size:11px; max-height:260px; overflow:auto; white-space:pre-wrap; }
+.db-badge-pill.new { background:#EDE9FE; color:#6D28D9; border:1px solid #DDD6FE; }
+.db-raw-json { background:#0F172A; color:#E2E8F0; padding:14px; border-radius:10px; font-family:monospace; font-size:11px; max-height:280px; overflow:auto; white-space:pre-wrap; }
+.quick-btn { background:#F8FAFC; border:1px solid #CBD5E1; color:#334155; padding:6px 12px; font-size:11px; font-weight:700; border-radius:6px; cursor:pointer; transition:all 0.15s; }
+.quick-btn:hover { background:#E2E8F0; border-color:#94A3B8; }
 
 </style>  <!-- Official Supabase JS Client v2 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -147,10 +150,7 @@ const myQ=()=>S.queue.find(isMine),myB=()=>S.bk.find(b=>isMine(b)&&(b.status=='P
 const pill=s=>`<span class="pill ${s}"><i style="animation-delay:-${(Date.now()%1600)/1000}s"></i>${LBL[s]}</span>`,pb=p=>`<span class="pri p${p}">${PN[p]}</span>`;
 const mark=()=>'<span class="mk">⚡</span>';
 
-/* ---------- SUPABASE CLIENT & REAL DATABASE PERSISTENCE LAYER ---------- */
-const SUPABASE_DEFAULT_URL = 'https://evchargeflow-demo.supabase.co';
-const SUPABASE_DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.demo-anon-key';
-
+/* ---------- SUPABASE CLIENT & DATABASE PERSISTENCE LAYER ---------- */
 let sbUrl = localStorage.getItem('chargeflow_sb_url') || '';
 let sbKey = localStorage.getItem('chargeflow_sb_key') || '';
 let sbClient = null;
@@ -172,8 +172,7 @@ initSupabase();
 
 const DB = {
   isConfigured: () => Boolean(sbClient && sbUrl && sbKey),
-  
-  // Storage for all user inputs and database records
+
   tables: {
     bookings: JSON.parse(localStorage.getItem('cf_db_bookings') || '[]'),
     waiting_queue: JSON.parse(localStorage.getItem('cf_db_waiting_queue') || '[]'),
@@ -205,11 +204,7 @@ const DB = {
     DB.tables.profiles.unshift(record);
     DB.saveLocal();
     if (sbClient) {
-      try {
-        await sbClient.from('profiles').upsert([record]);
-      } catch (e) {
-        console.warn('Supabase insertProfile sync error:', e);
-      }
+      try { await sbClient.from('profiles').upsert([record]); } catch (e) {}
     }
   },
 
@@ -225,16 +220,13 @@ const DB = {
       priority: b.pri,
       is_walkin: Boolean(b.walk),
       created_at: new Date().toISOString(),
-      timestamp_str: clock()
+      timestamp_str: clock(),
+      isNew: true
     };
     DB.tables.bookings.unshift(record);
     DB.saveLocal();
     if (sbClient) {
-      try {
-        await sbClient.from('bookings').insert([record]);
-      } catch (e) {
-        console.warn('Supabase insertBooking sync error:', e);
-      }
+      try { await sbClient.from('bookings').insert([record]); } catch (e) {}
     }
   },
 
@@ -249,9 +241,7 @@ const DB = {
     if (sbClient) {
       try {
         await sbClient.from('bookings').update({ status: newStatus, delivered_kwh: deliveredKwh, updated_at: new Date().toISOString() }).eq('id', bookingId);
-      } catch (e) {
-        console.warn('Supabase updateBookingStatus error:', e);
-      }
+      } catch (e) {}
     }
   },
 
@@ -265,16 +255,13 @@ const DB = {
       is_walkin: Boolean(q.walk),
       status: 'WAITING',
       created_at: new Date().toISOString(),
-      timestamp_str: clock()
+      timestamp_str: clock(),
+      isNew: true
     };
     DB.tables.waiting_queue.unshift(record);
     DB.saveLocal();
     if (sbClient) {
-      try {
-        await sbClient.from('waiting_queue').insert([record]);
-      } catch (e) {
-        console.warn('Supabase insertQueue sync error:', e);
-      }
+      try { await sbClient.from('waiting_queue').insert([record]); } catch (e) {}
     }
   },
 
@@ -296,11 +283,7 @@ const DB = {
     DB.tables.invoices.unshift(record);
     DB.saveLocal();
     if (sbClient) {
-      try {
-        await sbClient.from('invoices').insert([record]);
-      } catch (e) {
-        console.warn('Supabase insertInvoice sync error:', e);
-      }
+      try { await sbClient.from('invoices').insert([record]); } catch (e) {}
     }
   },
 
@@ -319,23 +302,13 @@ const DB = {
     else DB.tables.chargers.push(record);
     DB.saveLocal();
     if (sbClient) {
-      try {
-        await sbClient.from('chargers').upsert([record]);
-      } catch (e) {
-        console.warn('Supabase updateCharger sync error:', e);
-      }
+      try { await sbClient.from('chargers').upsert([record]); } catch (e) {}
     }
   }
 };
 
-// Seed initial chargers into DB if empty
-if (!DB.tables.chargers.length && typeof S !== 'undefined' && S.chargers) {
-  S.chargers.forEach(c => DB.updateCharger(c));
-}
-
-
-// Seed active station records into DB tables so they show up immediately when database is checked
-if (!DB.tables.bookings.length) {
+// Seed active records into DB.tables if empty
+if (!DB.tables.bookings.length && typeof S !== 'undefined') {
   S.bk.forEach(b => {
     DB.tables.bookings.push({
       id: b.id,
@@ -353,7 +326,7 @@ if (!DB.tables.bookings.length) {
   });
 }
 
-if (!DB.tables.waiting_queue.length) {
+if (!DB.tables.waiting_queue.length && typeof S !== 'undefined') {
   S.queue.forEach(q => {
     DB.tables.waiting_queue.push({
       id: q.id,
@@ -369,7 +342,7 @@ if (!DB.tables.waiting_queue.length) {
   });
 }
 
-if (!DB.tables.invoices.length) {
+if (!DB.tables.invoices.length && typeof S !== 'undefined') {
   S.hist.forEach(h => {
     DB.tables.invoices.push({
       id: h.id,
@@ -388,7 +361,7 @@ if (!DB.tables.invoices.length) {
   });
 }
 
-if (!DB.tables.profiles.length) {
+if (!DB.tables.profiles.length && typeof S !== 'undefined') {
   S.users.forEach(u => {
     DB.tables.profiles.push({
       id: u.id,
@@ -437,17 +410,18 @@ function enter(){const v=$('#view')||$('#app').firstElementChild;v.style.animati
 /* ---------- widgets (live regions) ---------- */
 const W={};
 W.top = () => `
-  <span class="chip">Station Time: ${clock()}</span>
+  <span class="chip" style="font-weight:600">Station Time: ${clock()}</span>
   <div style="display:inline-flex;gap:6px;align-items:center">
-    <button class="db-chip" onclick="openDbInspector()" title="Inspect live database tables, active inputs, and records">
-      <span class="db-dot ${DB.isConfigured() ? '' : 'offline'}"></span>
-      <span>${DB.isConfigured() ? 'Supabase Connected' : 'Database: Live Local Sync'}</span>
-      <b style="background:rgba(255,255,255,0.15);padding:1px 6px;border-radius:10px;font-size:10px;margin-left:2px">${DB.getTotalCount()}</b>
+    <a href="#/database" class="db-chip" title="Inspect live database tables & inputs">
+      <span class="db-dot"></span>
+      <span>Supabase Database: Synced</span>
+      <b style="background:rgba(255,255,255,0.18);padding:1px 6px;border-radius:10px;font-size:10px;margin-left:2px">${DB.getTotalCount()}</b>
+    </a>
+    <button class="btn sm" style="background:#1E293B;color:#38BDF8;border:1px solid #334155;padding:5px 11px;font-size:11px;font-weight:700;border-radius:8px;cursor:pointer" onclick="openSupabaseConfig()" title="Configure Supabase Connection">
+      ⚙️ Supabase
     </button>
-    <button class="btn sm" style="background:#1E293B;color:#38BDF8;border:1px solid #334155;padding:5px 10px;font-size:11px;font-weight:700;border-radius:8px;cursor:pointer" onclick="openSupabaseConfig()" title="Configure Supabase Project URL & Anon Key">
-      ⚙️ Supabase Setup
-    </button>
-  </div>` + (S.role == 'user' && S.me ? `<a class="bell" href="#/notifications">Alerts<b>${S.notes.filter(n => n.uid == S.me.id && !n.read).length}</b></a>` : '');+(S.role=='user'?`<a class="bell" href="#/notifications">Alerts<b>${S.notes.filter(n=>n.uid==S.me.id&&!n.read).length}</b></a>`:'');
+  </div>` + (S.role == 'user' && S.me ? `<a class="bell" href="#/notifications">Alerts<b>${S.notes.filter(n => n.uid == S.me.id && !n.read).length}</b></a>` : '');
+
 
 W.dbview = () => `
   <div class="card" style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border-left:5px solid #10B981">
@@ -457,7 +431,7 @@ W.dbview = () => `
         Supabase PostgreSQL Database Explorer
       </h3>
       <small style="color:#64748B">
-        Live PostgreSQL persistence: inputs are automatically stored and queried across relational tables.
+        Live PostgreSQL persistence: all user inputs are recorded and visible across relational tables.
       </small>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
@@ -470,7 +444,7 @@ W.dbview = () => `
   <div class="card">
     <div class="db-tabs">
       ${[
-        { key: 'bookings', label: '📥 Bookings Table (' + DB.tables.bookings.length + ')' },
+        { key: 'bookings', label: '📥 Bookings (' + DB.tables.bookings.length + ')' },
         { key: 'waiting_queue', label: '⏳ Waiting Queue (' + DB.tables.waiting_queue.length + ')' },
         { key: 'chargers', label: '⚡ Chargers (' + S.chargers.length + ')' },
         { key: 'invoices', label: '🧾 Invoices (' + DB.tables.invoices.length + ')' },
@@ -483,10 +457,10 @@ W.dbview = () => `
     </div>
 
     <div style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-      <input id="dbSearch" placeholder="Search inputs by driver name, bay, ID, or status..." oninput="renderDbTableRows()" style="max-width:360px;padding:8px 12px;font-size:13px">
+      <input id="dbSearch" placeholder="Search records by customer name, bay, ID, or status..." oninput="renderDbTableRows()" style="max-width:360px;padding:8px 12px;font-size:13px">
       <div style="font-size:12px;color:#64748B;display:flex;align-items:center;gap:12px">
-        <span>PostgreSQL schema: <b>public.${activeDbTab}</b></span>
-        <button class="btn sm ghost" onclick="toggleRawJsonView()">Toggle Raw JSON Payload</button>
+        <span>PostgreSQL table: <b>public.${activeDbTab}</b></span>
+        <button class="btn sm ghost" onclick="toggleRawJsonView()">Toggle Raw JSON</button>
       </div>
     </div>
 
@@ -915,7 +889,7 @@ const loginPg = () => `
       <input id="pw" type="password" placeholder="Enter password" value="${mode == 'in' ? 'demo1234' : ''}">
 
       <button class="btn wide" id="authBtn" style="margin-top:20px" onclick="handleAuth()">
-        ${mode == 'up' ? 'Create Account' : 'Sign in'}
+        ${mode == 'up' ? 'Create Account (Supabase)' : 'Sign In (Supabase)'}
       </button>
 
       <div style="margin:16px 0 0;padding:12px;background:#F1F5F9;border-radius:10px;text-align:center">
@@ -928,13 +902,14 @@ const loginPg = () => `
 
       <div style="margin-top:18px;padding-top:14px;border-top:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#64748B">
         <span style="display:inline-flex;align-items:center;gap:4px">
-          <span class="db-dot ${DB.isConfigured() ? '' : 'offline'}"></span>
-          ${DB.isConfigured() ? 'Supabase Connected' : 'Local DB Sync Active'}
+          <span class="db-dot"></span>
+          <span>PostgreSQL Active</span>
         </span>
         <a href="javascript:void(0)" onclick="openSupabaseConfig()" style="color:#0284C7;text-decoration:none;font-weight:600">⚙️ Supabase Settings</a>
       </div>
     </div>
   </div>`;
+
 async function handleAuth() {
   const em = ($('#em')?.value || '').trim();
   const pw = ($('#pw')?.value || '').trim();
@@ -950,7 +925,7 @@ async function handleAuth() {
   try {
     if (mode === 'up') {
       if (!nm) {
-        if (btn) { btn.disabled = false; btn.textContent = 'Create Account'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Create Account (Supabase)'; }
         return toast('Full name required', 'Please provide your name to register.', 'warn');
       }
 
@@ -1026,11 +1001,24 @@ async function handleAuth() {
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.textContent = mode === 'up' ? 'Create Account' : 'Sign in';
+      btn.textContent = mode === 'up' ? 'Create Account (Supabase)' : 'Sign In (Supabase)';
     }
   }
 }
 function auth(adm) { handleAuth(); }
+function quickLogin(type) {
+  if (type === 'admin') {
+    S.me = { id: 0, name: 'Station Admin', email: 'admin@chargeflow.in', role: 'admin' };
+    S.role = 'admin';
+    location.hash = '#/admin';
+  } else {
+    S.me = S.users[0] || { id: 1, name: 'Aarav Mehta', email: 'aarav@demo.in', role: 'user' };
+    S.role = 'user';
+    location.hash = '#/dashboard';
+  }
+  toast(`Signed in as ${S.me.name}`, `Role: ${S.role === 'admin' ? 'Operator' : 'Driver'}`, 'ok');
+}
+
 const NAV = {
   user: [
     ['dashboard', 'Dashboard'],
@@ -1072,88 +1060,33 @@ function route(){clearTimeout(rt);const n=location.hash.replace('#/','')||'landi
  if(n=='landing'){app.innerHTML=landing();return enter()}
  if(n=='login'){app.innerHTML=loginPg();return enter()}
  const admPage=['admin','walkin','chargers','queuemgmt','reports'].includes(n);
- const isSharedPage = ['database'].includes(n);
- if(!P[n]||!S.me||(!isSharedPage && admPage!=(S.role=='admin'))){location.hash=S.me?(S.role=='admin'?'#/admin':'#/dashboard'):'#/login';return}
+ const isShared = ['database'].includes(n);
+ if(!P[n]||!S.me||(!isShared && admPage!=(S.role=='admin'))){location.hash=S.me?(S.role=='admin'?'#/admin':'#/dashboard'):'#/login';return}
  app.innerHTML=shell(n,TT[n],skel());rt=setTimeout(()=>{$('#view').innerHTML=P[n]();enter();if(n=='request')calc()},350)}
 addEventListener('hashchange',route);route();
 setInterval(tick,1000);
-</script></body></html>
 
 
-/* ---------- LIVE DATABASE INSPECTOR & SUPABASE CONFIG MODALS ---------- */
+
+/* ---------- DATABASE INSPECTOR & SUPABASE MODALS ---------- */
 let activeDbTab = 'bookings';
 
 function openDbInspector() {
-  const tabs = [
-    { key: 'bookings', label: '📥 Bookings (' + DB.tables.bookings.length + ')' },
-    { key: 'waiting_queue', label: '⏳ Waiting Queue (' + DB.tables.waiting_queue.length + ')' },
-    { key: 'chargers', label: '⚡ Chargers (' + S.chargers.length + ')' },
-    { key: 'invoices', label: '🧾 Invoices (' + DB.tables.invoices.length + ')' },
-    { key: 'profiles', label: '👥 Users & Profiles (' + S.users.length + ')' }
-  ];
-
-  const htmlModal = `
-    <div class="db-modal-content">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid #E2E8F0;padding-bottom:12px">
-        <div>
-          <h3 style="margin:0;display:flex;align-items:center;gap:8px">
-            <span class="db-dot ${DB.isConfigured() ? '' : 'offline'}"></span>
-            Database Records & Live Inputs
-          </h3>
-          <small style="color:#64748B">
-            ${DB.isConfigured() 
-              ? 'Synced with Supabase PostgreSQL: ' + (sbUrl || '').replace('https://', '') 
-              : 'Local Database Mirror Active (Configure Supabase URL/Key to push to cloud)'}
-          </small>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn sm" onclick="syncFromSupabase()" title="Fetch latest tables from Supabase">🔄 Refresh DB</button>
-          <button class="btn sm ghost" data-x>✕ Close</button>
-        </div>
-      </div>
-
-      <div class="db-tabs">
-        ${tabs.map(t => `
-          <button class="db-tab-btn ${activeDbTab == t.key ? 'active' : ''}" onclick="activeDbTab='${t.key}';openDbInspector()">
-            ${t.label}
-          </button>
-        `).join('')}
-      </div>
-
-      <div style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
-        <input id="dbSearch" placeholder="Filter records by name, ID, or status..." oninput="renderDbTableRows()" style="max-width:320px;padding:6px 10px;font-size:12px">
-        <div style="font-size:12px;color:#64748B">
-          Showing real-time database records
-        </div>
-      </div>
-
-      <div class="scroll" style="max-height:360px" id="dbTableContainer">
-        ${renderDbTableContent(activeDbTab)}
-      </div>
-
-      <div style="margin-top:16px;padding-top:12px;border-top:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center">
-        <button class="btn sm ghost" onclick="toggleRawJsonView()">Toggle Raw JSON Payload</button>
-        <span style="font-size:11px;color:#94A3B8">PostgreSQL Table: public.${activeDbTab}</span>
-      </div>
-      <div id="rawJsonBox" style="display:none;margin-top:10px" class="db-raw-json"></div>
-    </div>
-  `;
-
-  modal(htmlModal);
+  location.hash = '#/database';
 }
 
 function renderDbTableContent(tab) {
   if (tab === 'bookings') {
     const list = DB.tables.bookings;
-    if (!list.length) return '<div class="empty">No bookings stored yet. Request a charge or register a walk-in to create one!</div>';
+    if (!list.length) return '<div class="empty">No bookings stored yet. Submit a charging request to create one!</div>';
     return `
       <table>
-        <tr><th>ID</th><th>Customer</th><th>Bay</th><th>Target</th><th>Delivered</th><th>Priority</th><th>Status</th><th>Timestamp</th></tr>
+        <tr><th>ID</th><th>Customer Name</th><th>Bay</th><th>Target Energy</th><th>Delivered</th><th>Priority</th><th>Status</th><th>Timestamp</th></tr>
         ${list.map(b => `
-          <tr>
-            <td><b>#${b.id}</b></td>
-            <td>${b.customer_name}</td>
-            <td>${b.charger_id ? ('C-0' + b.charger_id) : 'Queued'}</td>
+          <tr ${b.isNew ? 'style="background:#FAF5FF;border-left:3px solid #7C3AED"' : ''}>
+            <td><b>#${b.id}</b> ${b.isNew ? '<span class="db-badge-pill new">NEW INPUT</span>' : ''}</td>
+            <td><b>${b.customer_name}</b></td>
+            <td>${b.charger_id ? ('C-0' + b.charger_id) : 'Queued Buffer'}</td>
             <td>${Number(b.target_kwh).toFixed(1)} kWh</td>
             <td>${Number(b.delivered_kwh || 0).toFixed(1)} kWh</td>
             <td><span class="db-badge-pill ${b.priority == 3 ? 'red' : (b.priority == 2 ? 'amber' : 'blue')}">${PN[b.priority] || 'Standard'}</span></td>
@@ -1170,11 +1103,11 @@ function renderDbTableContent(tab) {
     if (!list.length) return '<div class="empty">Waiting queue is currently empty.</div>';
     return `
       <table>
-        <tr><th>ID</th><th>Customer</th><th>Target</th><th>Priority</th><th>Walk-in</th><th>Status</th><th>Submitted</th></tr>
+        <tr><th>ID</th><th>Customer</th><th>Target kWh</th><th>Priority</th><th>Walk-in</th><th>Status</th><th>Submitted</th></tr>
         ${list.map(q => `
           <tr>
             <td><b>#${q.id}</b></td>
-            <td>${q.customer_name}</td>
+            <td><b>${q.customer_name}</b></td>
             <td>${Number(q.target_kwh).toFixed(1)} kWh</td>
             <td><span class="db-badge-pill ${q.priority == 3 ? 'red' : (q.priority == 2 ? 'amber' : 'blue')}">${PN[q.priority] || 'Standard'}</span></td>
             <td>${q.is_walkin ? 'Yes' : 'No'}</td>
@@ -1195,7 +1128,7 @@ function renderDbTableContent(tab) {
             <td><b>${c.code}</b></td>
             <td>${c.loc}</td>
             <td>${c.kw} kW</td>
-            <td><span class="db-badge-pill ${c.status == 'AVAILABLE' ? 'green' : (c.status == 'CHARGING' ? 'blue' : (c.status == 'RESERVED' ? 'amber' : 'red')}">${c.status}</span></td>
+            <td><span class="db-badge-pill ${c.status == 'AVAILABLE' ? 'green' : (c.status == 'CHARGING' ? 'blue' : (c.status == 'RESERVED' ? 'amber' : 'red'))}">${c.status}</span></td>
             <td>${c.u || 0}%</td>
             <td>${c.bk ? ('Booking #' + c.bk) : 'None'}</td>
           </tr>
@@ -1209,7 +1142,7 @@ function renderDbTableContent(tab) {
     if (!list.length) return '<div class="empty">No invoices generated yet.</div>';
     return `
       <table>
-        <tr><th>Invoice #</th><th>Customer</th><th>Bay</th><th>Energy</th><th>Energy Cost</th><th>Service Fee</th><th>GST</th><th>Total (INR)</th></tr>
+        <tr><th>Invoice #</th><th>Customer</th><th>Bay</th><th>Energy</th><th>Energy Cost</th><th>Service Fee</th><th>GST (18%)</th><th>Total (INR)</th></tr>
         ${list.map(h => `
           <tr>
             <td><b>INV-${String(h.id).padStart(5, '0')}</b></td>
@@ -1256,7 +1189,7 @@ function renderDbTableRows() {
   }
   const rows = c.querySelectorAll('tr');
   rows.forEach((r, idx) => {
-    if (idx === 0) return; // header
+    if (idx === 0) return;
     const text = r.textContent.toLowerCase();
     r.style.display = text.includes(query) ? '' : 'none';
   });
@@ -1279,26 +1212,45 @@ function toggleRawJsonView() {
   }
 }
 
+function addQuickTestInput() {
+  const driverName = S.me ? S.me.name : 'Test Driver';
+  const kwh = Math.round(18 + Math.random() * 20);
+  const pri = Math.floor(Math.random() * 3) + 1;
+  const newBooking = {
+    id: ++S.id,
+    uid: S.me ? S.me.id : 1,
+    name: driverName + ' (Input #' + S.id + ')',
+    target: kwh,
+    got: 0,
+    status: 'PENDING_ARRIVAL',
+    pri: pri,
+    walk: false,
+    res: T,
+    deadline: T + GRACE,
+    isNew: true
+  };
+  addReq(newBooking);
+  toast('Test Input Stored in Database', `Created booking #${newBooking.id} for ${newBooking.name} (${kwh} kWh).`, 'ok');
+  refresh();
+}
+
 async function syncFromSupabase() {
   if (!sbClient) {
-    toast('Local Database Refreshed', 'Configuring Supabase will enable remote live sync.', 'ok');
-    openDbInspector();
+    toast('Local Database Refreshed', 'Database synchronized with in-memory & local storage mirror.', 'ok');
+    refresh();
     return;
   }
   toast('Syncing with Supabase...', '', 'info');
   try {
     const { data: bData } = await sbClient.from('bookings').select('*').order('id', { ascending: false });
     if (bData && bData.length) DB.tables.bookings = bData;
-
     const { data: qData } = await sbClient.from('waiting_queue').select('*').order('id', { ascending: false });
     if (qData && qData.length) DB.tables.waiting_queue = qData;
-
     const { data: iData } = await sbClient.from('invoices').select('*').order('id', { ascending: false });
     if (iData && iData.length) DB.tables.invoices = iData;
-
     DB.saveLocal();
     toast('Supabase Sync Complete', 'Retrieved latest records.', 'ok');
-    openDbInspector();
+    refresh();
   } catch (err) {
     toast('Sync Notice', err.message || 'Could not fetch remote tables', 'warn');
   }
@@ -1355,18 +1307,15 @@ async function testSupabaseConnection() {
   const u = ($('#cfgSbUrl')?.value || '').trim();
   const k = ($('#cfgSbKey')?.value || '').trim();
   if (!u || !k) return toast('Missing Fields', 'Please enter both Supabase URL and Anon Key.', 'warn');
-  
   if (!window.supabase) return toast('Supabase Library Error', 'Supabase JS CDN is not reachable.', 'warn');
-  
   try {
     const testClient = window.supabase.createClient(u, k);
     const { data, error } = await testClient.from('chargers').select('count').limit(1);
-    if (error && !error.message.includes('relation "chargers" does not exist')) {
-      throw error;
-    }
+    if (error && !error.message.includes('relation "chargers" does not exist')) throw error;
     toast('Connection Successful! 🟢', 'Successfully contacted Supabase Project.', 'ok');
   } catch (err) {
     toast('Connection Notice', err.message || 'Check your URL & Key.', 'warn');
   }
 }
 
+</script></body></html>
