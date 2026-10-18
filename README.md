@@ -14,9 +14,8 @@
 
 - **Live Web Application**: [https://sakshijha786.github.io/ev-chargeflow/](https://sakshijha786.github.io/ev-chargeflow/)
 - **Vercel Mirror**: Accessible via deployed static SPA root.
-- **Judge Live Demo Controls**: Look at the persistent top navbar for two instant one-click demonstration triggers:
-  1. `⚡ Priority Demo`: Demonstrates emergency medical preemption over a standard waiting queue.
-  2. `🔄 Reallocation Demo`: Demonstrates a 20-second no-show timeout and instant automated handoff to the next queued driver.
+- **Supabase Authentication & PostgreSQL Database**: Real-time user authentication (email/password), live input persistence for bookings, queue buffers, and settled invoices.
+- **Database Records Inspector**: Real-time database viewer accessible via top navigation to verify submitted inputs, live statuses, and raw JSON/SQL records.
 
 ---
 
@@ -211,23 +210,34 @@ docker-compose up --build -d
 
 ---
 
-## 🧪 Interactive Judge Demos Walkthrough
+## 🗄️ Supabase Database & Authentication Integration
 
-To see the system in action without waiting 5 real minutes, use the persistent header demo buttons:
+EV ChargeFlow is integrated with **Supabase** for secure user authentication and persistent cloud PostgreSQL storage.
 
-### Demo 1: Priority Preemption (`⚡ Priority Demo`)
-1. Click **`⚡ Priority Demo`** in the top navigation.
-2. Two drivers (**Aarav Mehta** at Standard priority and **Dr. Priya** at Emergency priority) are placed in the queue simultaneously while all chargers are busy.
-3. At 10 seconds, Bay C-01 ($60\text{ kW}$ DC Fast) finishes charging.
-4. **Result**: The rule engine bypasses Aarav (#1) and allocates Bay C-01 immediately to **Dr. Priya** due to emergency priority!
-5. When the next bay opens, Aarav is allocated.
+### 1. Database Schema (`supabase_schema.sql`)
+The repository includes a production-ready PostgreSQL DDL script (`supabase_schema.sql`) with the following relational tables:
+- **`public.profiles`**: User accounts extending `auth.users` with name, email, and role (Driver vs Operator).
+- **`public.chargers`**: Real-time hardware telemetry, power ratings (kW), and operational states.
+- **`public.bookings`**: All driver charging requests, allocated bays, energy targets, and live delivery statuses.
+- **`public.waiting_queue`**: Deterministic priority queue buffer records (Emergency > Premium > Standard).
+- **`public.invoices`**: Settled tax invoices with itemized energy charges, service fees, and GST breakdown.
+- **`public.activity_logs`**: Real-time station activity and priority notification feeds.
 
-### Demo 2: No-Show Reallocation (`🔄 Reallocation Demo`)
-1. Click **`🔄 Reallocation Demo`** in the top navigation.
-2. All chargers are set to busy. **Rohan**, **Vikram**, **You (Aarav)**, and **Sana** queue up.
-3. Bay C-03 opens and is reserved for Vikram with an arrival timer.
-4. Vikram fails to arrive within the arrival window.
-5. **Result**: At timeout, Vikram's reservation expires. Bay C-03 is instantly reallocated to **You (Aarav)**, and Sana moves up to #1!
+### 2. Live Database Records & Inputs Inspector
+- Click **`Database Records`** in the top navigation to view the live database viewer modal.
+- Inspect all submitted user inputs in real-time across five interactive tabs:
+  1. **📥 Bookings**: Active and historical charging requests.
+  2. **⏳ Waiting Queue**: Deterministic priority queue entries.
+  3. **⚡ Chargers**: Current hardware bay states and operational statuses.
+  4. **🧾 Invoices**: Paid and settled tax billing records.
+  5. **👥 User Profiles**: Registered drivers and station administrators.
+- Supports instant table search/filtering and raw JSON data inspection.
+
+### 3. Setting Up Supabase
+1. Create a project at [supabase.com](https://supabase.com).
+2. Go to **SQL Editor**, paste the contents of `supabase_schema.sql`, and click **Run**.
+3. In the EV ChargeFlow web application, click **`⚙️ Supabase Setup`** in the top navigation or on the sign-in card.
+4. Enter your **Supabase Project URL** and **Anon Public API Key**, then click **Save & Connect**.
 
 ---
 

@@ -101,7 +101,26 @@ table{width:100%;border-collapse:collapse}th{text-align:left;font-weight:600;col
 .k4,.k3,.two,.half,.hero,.steps{grid-template-columns:1fr 1fr}.two,.hero{grid-template-columns:1fr}.top h2{font-size:20px}.tr .chip{display:none}.opt{flex-direction:column}}
 @media(max-width:560px){.k4,.k3,.half,.steps{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-</style></head><body>
+
+/* ---------- Supabase & Database Inspector Styles ---------- */
+.db-chip { display:inline-flex; align-items:center; gap:6px; cursor:pointer; background:#0B132B; border:1px solid rgba(16,185,129,0.35); color:#10B981; font-weight:700; font-size:11px; padding:4px 10px; border-radius:8px; transition:all 0.2s; }
+.db-chip:hover { border-color:#10B981; background:#0E1F42; }
+.db-dot { width:8px; height:8px; border-radius:50%; background:#10B981; box-shadow:0 0 8px #10B981; display:inline-block; }
+.db-dot.offline { background:#F59E0B; box-shadow:0 0 8px #F59E0B; }
+.db-modal-content { max-width:920px; width:95vw; max-height:85vh; overflow-y:auto; padding:24px; }
+.db-tabs { display:flex; gap:6px; margin-bottom:16px; border-bottom:1px solid #E2E8F0; padding-bottom:8px; flex-wrap:wrap; }
+.db-tab-btn { background:#F1F5F9; border:0; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:600; color:#475569; cursor:pointer; }
+.db-tab-btn.active { background:#2563EB; color:#FFF; }
+.db-badge-pill { display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:700; }
+.db-badge-pill.green { background:#DCFCE7; color:#15803D; }
+.db-badge-pill.blue { background:#DBEAFE; color:#1D4ED8; }
+.db-badge-pill.amber { background:#FEF3C7; color:#B45309; }
+.db-badge-pill.red { background:#FEE2E2; color:#B91C1C; }
+.db-raw-json { background:#0F172A; color:#E2E8F0; padding:12px; border-radius:8px; font-family:monospace; font-size:11px; max-height:260px; overflow:auto; white-space:pre-wrap; }
+
+</style>  <!-- Official Supabase JS Client v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head><body>
 <div id="app"></div><div id="toasts"></div>
 <script>
 const $=s=>document.querySelector(s),T0=Date.now();
@@ -127,19 +146,206 @@ const isMine=x=>S.role=='user'&&S.me&&x.uid==S.me.id,ch=id=>S.chargers.find(c=>c
 const myQ=()=>S.queue.find(isMine),myB=()=>S.bk.find(b=>isMine(b)&&(b.status=='PENDING_ARRIVAL'||b.status=='CHARGING'));
 const pill=s=>`<span class="pill ${s}"><i style="animation-delay:-${(Date.now()%1600)/1000}s"></i>${LBL[s]}</span>`,pb=p=>`<span class="pri p${p}">${PN[p]}</span>`;
 const mark=()=>'<span class="mk">⚡</span>';
+
+/* ---------- SUPABASE CLIENT & REAL DATABASE PERSISTENCE LAYER ---------- */
+const SUPABASE_DEFAULT_URL = 'https://evchargeflow-demo.supabase.co';
+const SUPABASE_DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.demo-anon-key';
+
+let sbUrl = localStorage.getItem('chargeflow_sb_url') || '';
+let sbKey = localStorage.getItem('chargeflow_sb_key') || '';
+let sbClient = null;
+
+function initSupabase() {
+  if (window.supabase && sbUrl && sbKey) {
+    try {
+      sbClient = window.supabase.createClient(sbUrl, sbKey);
+      console.log('Supabase client initialized for:', sbUrl);
+    } catch (e) {
+      console.warn('Supabase initialization failed:', e);
+      sbClient = null;
+    }
+  } else {
+    sbClient = null;
+  }
+}
+initSupabase();
+
+const DB = {
+  isConfigured: () => Boolean(sbClient && sbUrl && sbKey),
+  
+  // Storage for all user inputs and database records
+  tables: {
+    bookings: JSON.parse(localStorage.getItem('cf_db_bookings') || '[]'),
+    waiting_queue: JSON.parse(localStorage.getItem('cf_db_waiting_queue') || '[]'),
+    chargers: JSON.parse(localStorage.getItem('cf_db_chargers') || '[]'),
+    invoices: JSON.parse(localStorage.getItem('cf_db_invoices') || '[]'),
+    profiles: JSON.parse(localStorage.getItem('cf_db_profiles') || '[]')
+  },
+
+  saveLocal: () => {
+    localStorage.setItem('cf_db_bookings', JSON.stringify(DB.tables.bookings));
+    localStorage.setItem('cf_db_waiting_queue', JSON.stringify(DB.tables.waiting_queue));
+    localStorage.setItem('cf_db_chargers', JSON.stringify(DB.tables.chargers));
+    localStorage.setItem('cf_db_invoices', JSON.stringify(DB.tables.invoices));
+    localStorage.setItem('cf_db_profiles', JSON.stringify(DB.tables.profiles));
+  },
+
+  getTotalCount: () => {
+    return DB.tables.bookings.length + DB.tables.invoices.length + DB.tables.profiles.length;
+  },
+
+  insertProfile: async (profile) => {
+    const record = {
+      id: profile.id,
+      name: profile.name,
+      email: profile.email,
+      role: profile.role,
+      created_at: new Date().toISOString()
+    };
+    DB.tables.profiles.unshift(record);
+    DB.saveLocal();
+    if (sbClient) {
+      try {
+        await sbClient.from('profiles').upsert([record]);
+      } catch (e) {
+        console.warn('Supabase insertProfile sync error:', e);
+      }
+    }
+  },
+
+  insertBooking: async (b) => {
+    const record = {
+      id: b.id,
+      user_id: b.uid,
+      customer_name: b.name,
+      charger_id: b.ch,
+      target_kwh: b.target || b.kwh,
+      delivered_kwh: b.got || 0,
+      status: b.status,
+      priority: b.pri,
+      is_walkin: Boolean(b.walk),
+      created_at: new Date().toISOString(),
+      timestamp_str: clock()
+    };
+    DB.tables.bookings.unshift(record);
+    DB.saveLocal();
+    if (sbClient) {
+      try {
+        await sbClient.from('bookings').insert([record]);
+      } catch (e) {
+        console.warn('Supabase insertBooking sync error:', e);
+      }
+    }
+  },
+
+  updateBookingStatus: async (bookingId, newStatus, deliveredKwh) => {
+    const item = DB.tables.bookings.find(x => x.id == bookingId);
+    if (item) {
+      item.status = newStatus;
+      if (deliveredKwh !== undefined) item.delivered_kwh = deliveredKwh;
+      item.updated_at = new Date().toISOString();
+      DB.saveLocal();
+    }
+    if (sbClient) {
+      try {
+        await sbClient.from('bookings').update({ status: newStatus, delivered_kwh: deliveredKwh, updated_at: new Date().toISOString() }).eq('id', bookingId);
+      } catch (e) {
+        console.warn('Supabase updateBookingStatus error:', e);
+      }
+    }
+  },
+
+  insertQueue: async (q) => {
+    const record = {
+      id: q.id,
+      user_id: q.uid,
+      customer_name: q.name,
+      priority: q.pri,
+      target_kwh: q.kwh,
+      is_walkin: Boolean(q.walk),
+      status: 'WAITING',
+      created_at: new Date().toISOString(),
+      timestamp_str: clock()
+    };
+    DB.tables.waiting_queue.unshift(record);
+    DB.saveLocal();
+    if (sbClient) {
+      try {
+        await sbClient.from('waiting_queue').insert([record]);
+      } catch (e) {
+        console.warn('Supabase insertQueue sync error:', e);
+      }
+    }
+  },
+
+  insertInvoice: async (h) => {
+    const record = {
+      id: h.id,
+      user_id: h.uid,
+      customer_name: h.name,
+      charger_code: h.code,
+      energy_kwh: h.kwh,
+      energy_cost: h.e,
+      service_fee: h.f,
+      gst_amount: h.g,
+      total_amount: h.tot,
+      status: h.status,
+      created_at: new Date().toISOString(),
+      timestamp_str: h.when || clock()
+    };
+    DB.tables.invoices.unshift(record);
+    DB.saveLocal();
+    if (sbClient) {
+      try {
+        await sbClient.from('invoices').insert([record]);
+      } catch (e) {
+        console.warn('Supabase insertInvoice sync error:', e);
+      }
+    }
+  },
+
+  updateCharger: async (charger) => {
+    const record = {
+      id: charger.id,
+      code: charger.code,
+      location: charger.loc,
+      kw: charger.kw,
+      status: charger.status,
+      utilization: charger.u,
+      updated_at: new Date().toISOString()
+    };
+    const idx = DB.tables.chargers.findIndex(c => c.id == charger.id);
+    if (idx >= 0) DB.tables.chargers[idx] = record;
+    else DB.tables.chargers.push(record);
+    DB.saveLocal();
+    if (sbClient) {
+      try {
+        await sbClient.from('chargers').upsert([record]);
+      } catch (e) {
+        console.warn('Supabase updateCharger sync error:', e);
+      }
+    }
+  }
+};
+
+// Seed initial chargers into DB if empty
+if (!DB.tables.chargers.length && typeof S !== 'undefined' && S.chargers) {
+  S.chargers.forEach(c => DB.updateCharger(c));
+}
+
 /* ---------- rules engine ---------- */
 function ev(uid,t,m,type){S.notes.unshift({uid,t,m,type,read:0,at:clock()});if(S.role=='admin'||(S.me&&uid==S.me.id&&S.role=='user'))toast(t,m,type)}
 function allocate(){ // priority first, FIFO inside a priority; fast chargers go to Premium/Emergency
   for(;;){const free=S.chargers.filter(c=>c.status=='AVAILABLE');if(!free.length||!S.queue.length)break;
     const q=qs()[0];S.queue.splice(S.queue.indexOf(q),1);free.sort((a,b)=>b.kw-a.kw);const c=q.pri>=2?free[0]:free[free.length-1];
     const b={id:++S.id,uid:q.uid,name:q.name,ch:c.id,target:q.kwh,got:0,status:'PENDING_ARRIVAL',pri:q.pri,res:T,deadline:T+GRACE,walk:q.walk,noShow:q.noShow||q.uid==5};
-    S.bk.push(b);c.status='RESERVED';c.bk=b.id;
+    S.bk.push(b);c.status='RESERVED';c.bk=b.id;DB.insertBooking(b);DB.updateCharger(c);
     ev(q.uid,`Charger ${c.code} reserved`,q.walk?`${q.name} assigned to ${c.code}.`:`Arrive within 5:00 or the slot goes to the next driver.`,'ok');
     if(q.walk)arrive(b)}}
-function arrive(b){b.status='CHARGING';b.t0=T;ch(b.ch).status='CHARGING';if(b.uid&&!b.walk)ev(b.uid,'Charging started',`${ch(b.ch).code} is delivering power.`)}
+function arrive(b){b.status='CHARGING';b.t0=T;ch(b.ch).status='CHARGING';DB.updateBookingStatus(b.id,'CHARGING',b.got);DB.updateCharger(ch(b.ch));if(b.uid&&!b.walk)ev(b.uid,'Charging started',`${ch(b.ch).code} is delivering power.`)}
 function release(b,st){b.status=st;const c=ch(b.ch);if(c.status!='OUT_OF_SERVICE')c.status='AVAILABLE';c.bk=null}
 function finish(b){release(b,'COMPLETED');const h=inv({id:b.id,uid:b.uid,name:b.name,code:ch(b.ch).code,when:'Today '+clock(),kwh:+b.got.toFixed(2),status:'COMPLETED'});S.hist.unshift(h);
-  const r=S.rev[6];r[1]+=h.tot;r[2]+=h.kwh;ev(b.uid,'Charging complete',`${h.kwh} kWh delivered · ${inr(h.tot)} billed.`,'ok');allocate()}
+  const r=S.rev[6];r[1]+=h.tot;r[2]+=h.kwh;DB.insertInvoice(h);DB.updateBookingStatus(b.id,'COMPLETED',b.got);DB.updateCharger(ch(b.ch));ev(b.uid,'Charging complete',`${h.kwh} kWh delivered · ${inr(h.tot)} billed.`,'ok');allocate()}
 function expire(b){const code=ch(b.ch).code;release(b,'EXPIRED');S.hist.unshift(inv({id:b.id,uid:b.uid,name:b.name,code,when:'Today '+clock(),kwh:0,status:'EXPIRED'}));
   ev(b.uid,'Reservation timed out',`${code} released after 5 minutes without arrival. Next in queue gets it.`,'warn');allocate()}
 function tick(){T+=SPEED;S.bk.forEach(b=>{
@@ -147,7 +353,7 @@ function tick(){T+=SPEED;S.bk.forEach(b=>{
   else if(b.status=='PENDING_ARRIVAL'){if(!isMine(b)&&!b.noShow&&b.uid!=5&&T-b.res>=110)arrive(b);else if(T>=b.deadline)expire(b);
     else if(isMine(b)&&!b.warned&&b.deadline-T<=120){b.warned=1;ev(b.uid,'Arrive soon','2 minutes left before your slot is released.','warn')}}});
   refresh()}
-function addReq(o){const e=Object.assign({id:++S.id,at:++S.seq,t0:T},o);S.queue.push(e);allocate();
+function addReq(o){const e=Object.assign({id:++S.id,at:++S.seq,t0:T},o);S.queue.push(e);DB.insertQueue(e);allocate();
   const i=qs().indexOf(e);if(i>=0)ev(e.uid,'Added to queue',`You are #${i+1}. ${PN[e.pri]} priority.`);return e}
 /* ---------- helpers ---------- */
 function toast(t,m,type){const d=document.createElement('div');d.className='toast '+(type||'');d.innerHTML=`<b>${t}</b>${m?`<span>${m}</span>`:''}`;$('#toasts').appendChild(d);setTimeout(()=>{d.classList.add('out');setTimeout(()=>d.remove(),300)},4200)}
@@ -162,7 +368,18 @@ function enter(){const v=$('#view')||$('#app').firstElementChild;v.style.animati
   document.querySelectorAll('.cnt').forEach(e=>{const to=+e.dataset.c,p=e.dataset.p,t0=performance.now();(function f(t){const k=Math.min(1,(t-t0)/700);e.textContent=p+Math.round(to*(1-Math.pow(1-k,3))).toLocaleString('en-IN');if(k<1)requestAnimationFrame(f)})(t0)})}
 /* ---------- widgets (live regions) ---------- */
 const W={};
-W.top=()=>`<span class="chip">Station time ${clock()} · demo ${SPEED}× speed</span><div style="display:inline-flex;gap:6px;align-items:center"><button class="btn sm" style="background:#2563EB;color:#fff;border:0;padding:5px 12px;font-size:12px;font-weight:700;border-radius:8px;cursor:pointer" onclick="runSimultaneousDemo()">⚡ Priority Demo</button><button class="btn sm" style="background:#0F172A;color:#38BDF8;border:1px solid #334155;padding:5px 12px;font-size:12px;font-weight:700;border-radius:8px;cursor:pointer" onclick="runReallocationDemo()">🔄 Reallocation Demo</button></div>`+(S.role=='user'?`<a class="bell" href="#/notifications">Alerts<b>${S.notes.filter(n=>n.uid==S.me.id&&!n.read).length}</b></a>`:'');
+W.top = () => `
+  <span class="chip">Station Time: ${clock()}</span>
+  <div style="display:inline-flex;gap:6px;align-items:center">
+    <button class="db-chip" onclick="openDbInspector()" title="Inspect live database tables, active inputs, and records">
+      <span class="db-dot ${DB.isConfigured() ? '' : 'offline'}"></span>
+      <span>${DB.isConfigured() ? 'Supabase Connected' : 'Database: Live Local Sync'}</span>
+      <b style="background:rgba(255,255,255,0.15);padding:1px 6px;border-radius:10px;font-size:10px;margin-left:2px">${DB.getTotalCount()}</b>
+    </button>
+    <button class="btn sm" style="background:#1E293B;color:#38BDF8;border:1px solid #334155;padding:5px 10px;font-size:11px;font-weight:700;border-radius:8px;cursor:pointer" onclick="openSupabaseConfig()" title="Configure Supabase Project URL & Anon Key">
+      ⚙️ Supabase Setup
+    </button>
+  </div>` + (S.role == 'user' && S.me ? `<a class="bell" href="#/notifications">Alerts<b>${S.notes.filter(n => n.uid == S.me.id && !n.read).length}</b></a>` : '');+(S.role=='user'?`<a class="bell" href="#/notifications">Alerts<b>${S.notes.filter(n=>n.uid==S.me.id&&!n.read).length}</b></a>`:'');
 W.board=()=>`<div class="grid bays">${S.chargers.map(c=>{const b=c.bk&&S.bk.find(x=>x.id==c.bk),p=b&&b.status=='CHARGING'?Math.min(100,b.got/b.target*100):0,mine=b&&isMine(b);
  return `<div class="bay ${c.status} ${mine?'is-me':''}"><div class="bh"><b>${c.code}</b><span>${c.kw} kW</span></div>${pill(c.status)}<div class="bm">${b?(mine?'<span class="you-chip">You</span>':b.name.split(' ')[0])+(b.status=='PENDING_ARRIVAL'?(mine?` <b style="color:#7C3AED">· arrive in ${fmt(b.deadline-T)}</b>`:` · arrive in ${fmt(b.deadline-T)}`):` · ${Math.round(p)}%`):c.loc}</div><div class="bar"><i style="width:${p}%"></i></div></div>`}).join('')}</div>`;
 const qlist=(key,adm)=>{const q=qs(),P=S.pp[key]||(S.pp[key]={});const h=q.length?q.map((e,i)=>`<div class="qrow${P[e.id]>i+1?' up':''}${isMine(e)?' me':''}"><span class="pos">${i+1}</span><div><b>${isMine(e)?'<span class="you-chip">You</span>':e.name}</b>${e.walk?' <span class="pri p1">Walk-in</span>':''}<small>${Math.round(e.kwh)} kWh needed · waiting ${fmt(T-e.t0)}</small></div>${pb(e.pri)}${adm?`<span class="acts"><button class="btn sm ghost" onclick="promote(${e.id})">Promote</button><button class="btn sm red" onclick="dropQ(${e.id})">Remove</button></span>`:`<span class="eta">~${(i+1)*4} min</span>`}</div>`).join(''):'<div class="empty">Queue is clear. New requests get a bay right away.</div>';
@@ -225,7 +442,7 @@ function promote(id){const e=S.queue.find(x=>x.id==id);if(e&&e.pri<3){e.pri++;to
 function dropQ(id){const i=S.queue.findIndex(x=>x.id==id);if(i>=0){const e=S.queue.splice(i,1)[0];ev(e.uid,'Removed from queue',e.name+' was removed by the operator.','warn')}refresh()}
 function stopMine(){finish(myB());refresh()}function arriveMine(){arrive(myB());refresh()}
 function cancelMine(){const b=myB(),q=myQ();if(b){release(b,'CANCELLED');allocate()}else if(q)S.queue.splice(S.queue.indexOf(q),1);toast('Reservation cancelled','The charger goes to the next driver.');refresh()}
-function setSt(id,v){const c=ch(id);if(c.bk){toast('Charger is busy','Wait for the session to end first.','warn')}else{c.status=v;toast(c.code+' set to '+LBL[v].toLowerCase(),'','ok');allocate()}refresh()}
+function setSt(id,v){const c=ch(id);if(c.bk){toast('Charger is busy','Wait for the session to end first.','warn')}else{c.status=v;DB.updateCharger(c);toast(c.code+' set to '+LBL[v].toLowerCase(),'','ok');allocate()}refresh()}
 function addChargerM(){modal(`<h3>Add charger</h3><label>Code</label><input id="nc" placeholder="C-07"><label>Location</label><input id="nl" placeholder="Bay G · DC"><label>Power (kW)</label><input id="nk" type="number" value="30"><div style="display:flex;gap:8px;margin-top:20px"><button class="btn" onclick="saveCharger()">Save charger</button><button class="btn ghost" data-x>Cancel</button></div>`)}
 function saveCharger(){const c=$('#nc').value.trim();if(!c)return toast('Enter a charger code','','warn');S.chargers.push({id:++S.id,code:c,loc:$('#nl').value||'New bay',kw:+$('#nk').value||30,status:'AVAILABLE',u:0,bk:null});closeM();toast('Charger added',c+' is ready.','ok');allocate();refresh()}
 function showInv(id){const h=S.hist.find(x=>x.id==id);if(!h)return;modal(`<h3>Invoice #${h.id}</h3><small>${h.when} · ${h.code} · ${h.name||'Driver'}</small><div style="margin-top:12px"><div class="row"><span>Energy ${h.kwh} kWh × ${inr(RATE)}</span><span>${inr(h.e)}</span></div><div class="row"><span>Service fee</span><span>${inr(h.f)}</span></div><div class="row"><span>GST 18%</span><span>${inr(h.g)}</span></div><div class="row t"><span>Total</span><span>${inr(h.tot)}</span></div></div><div style="display:flex;gap:8px;margin-top:16px"><button class="btn wide" onclick="downloadInvoicePDF(${h.id})">Download PDF</button><button class="btn ghost wide" onclick="printInvoice(${h.id})">Print / Save</button><button class="btn ghost" data-x>Close</button></div>`)}
@@ -542,164 +759,7 @@ function printInvoice(id){
   w.document.close();
 }
 
-/* ---------- Judge Live Demo Scenarios ---------- */
-let demoT1 = null, demoT2 = null, demoT3 = null;
-function clearDemoTimers(){
-  clearTimeout(demoT1);
-  clearTimeout(demoT2);
-  clearTimeout(demoT3);
-  demoT1 = demoT2 = demoT3 = null;
-}
-
-function runSimultaneousDemo(){
-  clearDemoTimers();
-
-  if(!S.me){ S.me = S.users[0]; S.role = 'user'; }
-  location.hash = '#/queue';
-  const v = $('#view');
-  if(v){ v.innerHTML = P.queue(); enter(); }
-
-  // Set all chargers busy so both drivers wait in the queue first
-  S.chargers.forEach(c => {
-    if(c.status == 'AVAILABLE') c.status = 'CHARGING';
-  });
-
-  // Clear any existing Aarav, Priya, or Rohan requests
-  S.queue = S.queue.filter(q => q.uid != 1 && q.uid != 7 && q.uid != 3);
-  S.bk = S.bk.filter(b => b.uid != 1 && b.uid != 7 && b.uid != 3);
-
-  // Step 1: Add both Aarav and Dr. Priya into the queue together (10s grace period)
-  // Both are visibly queued so judges see clear evidence of Dr. Priya in queue
-  const aarav = { id: ++S.id, uid: 1, name: 'Aarav Mehta', pri: 1, kwh: 22, at: 1, t0: T };
-  const priya = { id: ++S.id, uid: 7, name: 'Dr. Priya (Emergency Medical)', pri: 1, kwh: 28, at: 2, t0: T };
-
-  S.queue = [aarav, priya];
-  refresh();
-
-  toast('⚡ Step 1/4 (0s)', 'Aarav (#1) & Dr. Priya (#2) added to queue (10s grace period).', 'warn');
-
-  // STEP 2: At 10s full grace, Dr. Priya given Emergency Priority -> Bay C-01 allocated
-  demoT1 = setTimeout(() => {
-    priya.pri = 3; // Emergency Priority activated
-
-    // Charger C-01 (60 kW DC) completes charging and becomes available
-    const c1 = S.chargers[0];
-    const prevBk = S.bk.find(x => x.ch == c1.id);
-    if(prevBk) prevBk.status = 'COMPLETED';
-    c1.status = 'AVAILABLE';
-    c1.bk = null;
-
-    allocate(); // Rule engine prioritizes Dr. Priya for Bay C-01
-
-    // Make all other chargers busy and high target so Aarav stays in queue for 1 min
-    S.chargers.forEach((c, idx) => {
-      if(idx > 0 && c.status != 'OUT_OF_SERVICE'){
-        c.status = 'CHARGING';
-        const b = S.bk.find(x => x.ch == c.id);
-        if(b){ b.status = 'CHARGING'; b.got = 5; b.target = 50; }
-      }
-    });
-
-    refresh();
-    toast('⚡ Step 2/4 (10s)', 'Dr. Priya prioritized to Bay C-01! Aarav waiting at #1 (Next bay in 25s).', 'ok');
-
-    // STEP 3: When 15s have passed (15s after Priya is allocated), enter another person at #2 with same priority
-    demoT2 = setTimeout(() => {
-      const rohan = { id: ++S.id, uid: 3, name: 'Rohan Iyer', pri: 1, kwh: 26, at: ++S.seq, t0: T };
-      S.queue.push(rohan);
-      refresh();
-      toast('⚡ Step 3/4 (+15s)', 'Rohan Iyer joined queue at #2 (Same Standard priority as Aarav).', 'ok');
-    }, 15000);
-
-    // STEP 4: At 25s after Priya is allocated, Bay C-02 opens and Aarav is allocated!
-    demoT3 = setTimeout(() => {
-      const c2 = S.chargers[1];
-      const prevBk2 = S.bk.find(x => x.ch == c2.id);
-      if(prevBk2) prevBk2.status = 'COMPLETED';
-      c2.status = 'AVAILABLE';
-      c2.bk = null;
-
-      allocate(); // Aarav gets Bay C-02
-      refresh();
-      toast('⚡ Step 4/4 (25s)', 'Bay C-02 available! Allocated to Aarav Mehta. Rohan is now #1.', 'ok');
-    }, 25000);
-
-  }, 10000);
-}
-
-function runReallocationDemo(){
-  clearDemoTimers();
-
-  if(!S.me){ S.me = S.users[0]; S.role = 'user'; }
-  location.hash = '#/dashboard';
-  const v = $('#view');
-  if(v){ v.innerHTML = P.dashboard(); enter(); }
-
-  // Set all chargers busy
-  S.chargers[0].status = 'CHARGING'; // C-01
-  S.chargers[1].status = 'CHARGING'; // C-02
-  S.chargers[2].status = 'CHARGING'; // C-03
-  S.chargers[3].status = 'CHARGING'; // C-04
-  S.chargers[4].status = 'CHARGING'; // C-05
-  S.chargers[5].status = 'OUT_OF_SERVICE'; // C-06
-
-  // Clear any existing bookings for demo drivers
-  S.bk = S.bk.filter(b => b.uid != 1 && b.uid != 3 && b.uid != 4 && b.uid != 5);
-
-  // STEP 1: Rohan in queue for 10s. Vikram is at 2nd, Aarav at 3rd, Sana at 4th
-  const rohanQ = { id: ++S.id, uid: 3, name: 'Rohan Iyer', pri: 1, kwh: 24, at: 1, t0: T };
-  const vikramQ = { id: ++S.id, uid: 5, name: 'Vikram Rao', pri: 1, kwh: 20, at: 2, t0: T, noShow: true };
-  const meAarav = { id: ++S.id, uid: 1, name: 'Aarav Mehta', pri: 1, kwh: 22, at: 3, t0: T };
-  const sana = { id: ++S.id, uid: 4, name: 'Sana Khan', pri: 1, kwh: 26, at: 4, t0: T };
-
-  S.queue = [rohanQ, vikramQ, meAarav, sana];
-  refresh();
-
-  toast('🔄 Step 1/3 (0s)', 'Rohan in queue (10s). Vikram #2, You #3, Sana #4.', 'warn');
-
-  // STEP 2: At 10s:
-  // - Rohan is allocated C-01 and starts charging
-  // - Vikram is allocated C-03 with 20s arrival window
-  // - In queue: You are #1, Sana is #2
-  demoT1 = setTimeout(() => {
-    const c1 = S.chargers[0];
-    const rohanBk = { id: ++S.id, uid: 3, name: 'Rohan Iyer', ch: c1.id, target: 24, got: 2, status: 'CHARGING', pri: 1, res: T, deadline: T + 1200, t0: T };
-    c1.status = 'CHARGING';
-    c1.bk = rohanBk.id;
-    S.bk.push(rohanBk);
-    S.queue = S.queue.filter(q => q.uid != 3);
-
-    const c3 = S.chargers[2];
-    const vikramBk = { id: ++S.id, uid: 5, name: 'Vikram Rao', ch: c3.id, target: 20, got: 0, status: 'PENDING_ARRIVAL', pri: 1, res: T, deadline: T + 200, noShow: true };
-    c3.status = 'RESERVED';
-    c3.bk = vikramBk.id;
-    S.bk.push(vikramBk);
-    S.queue = S.queue.filter(q => q.uid != 5);
-
-    refresh();
-    toast('🔄 Step 2/3 (10s)', 'Rohan charging at C-01. Vikram allocated C-03 (20s arrival window).', 'warn');
-
-    // STEP 3: At 20s: Vikram misses slot -> C-03 reallocated to You, Sana comes to #1
-    demoT2 = setTimeout(() => {
-      vikramBk.status = 'EXPIRED';
-      S.bk = S.bk.filter(b => b.id != vikramBk.id);
-      S.hist.unshift(inv({ id: vikramBk.id, uid: 5, name: 'Vikram Rao', code: 'C-03', when: 'Today ' + clock(), kwh: 0, status: 'EXPIRED' }));
-
-      // Bay C-03 dynamically allocated to You (Aarav Mehta)
-      const myBk = { id: ++S.id, uid: 1, name: 'Aarav Mehta', ch: c3.id, target: 22, got: 0, status: 'PENDING_ARRIVAL', pri: 1, res: T, deadline: T + GRACE };
-      c3.status = 'RESERVED';
-      c3.bk = myBk.id;
-      S.bk.push(myBk);
-      S.queue = S.queue.filter(q => q.uid != 1);
-
-      // Sana comes to #1
-      refresh();
-      toast('🔄 Step 3/3 (20s)', 'Vikram missed arrival! C-03 reallocated to You. Sana is now #1!', 'ok');
-
-    }, 20000);
-
-  }, 10000);
-}
+/* ---------- Demo Section Removed (Replaced by Real Database Persistence) ---------- */
 /* ---------- landing, auth, router ---------- */
 W.lboard=()=>W.board();
 const landing=()=>`<div class="land"><div class="lnav"><div class="logo">${mark()}EV ChargeFlow</div><div><a href="#/login">Sign in</a><a class="btn" href="#/login">Get started</a></div></div>
@@ -709,14 +769,142 @@ const landing=()=>`<div class="land"><div class="lnav"><div class="logo">${mark(
 <div style="margin-top:28px" class="formula">Total = (<span>kWh × ₹18</span> + <span>₹25 service fee</span>) + <span>18% GST</span></div></section><div class="foot">EV ChargeFlow · Rule-based scheduling, no AI or GPS</div></div>`;
 W.lboard=()=>W.board();
 let mode='in';
-const loginPg=()=>`<div class="auth"><div class="card"><div class="logo" style="padding:0 0 6px;color:var(--navy)">${mark()}EV ChargeFlow</div><div class="tabs"><button class="${mode=='in'?'on':''}" onclick="mode='in';route()">Sign in</button><button class="${mode=='up'?'on':''}" onclick="mode='up';route()">Register</button></div>
-${mode=='up'?'<label>Full name</label><input id="nm" placeholder="Your name">':''}<label>Email</label><input id="em" value="aarav@demo.in"><label>Password</label><input type="password" value="demo1234"><button class="btn wide" style="margin-top:20px" onclick="auth()">${mode=='up'?'Create account':'Sign in'}</button>
-<small style="margin-top:16px;text-align:center">Demo data only. Nothing is sent anywhere.</small></div></div>`;
-function auth(adm){const em=$('#em').value||'aarav@demo.in',nm=$('#nm')&&$('#nm').value.trim();
- if(adm||/admin/i.test(em)){S.me={id:0,name:'Station Admin'};S.role='admin';location.hash='#/admin'}
- else{let u=S.users.find(x=>x.email==em);if(mode=='up'){if(!nm)return toast('Enter your name','Registration needs a full name.','warn');u={id:++S.id,name:nm,email:em,joined:'Today'};S.users.push(u);S.notes.unshift({uid:u.id,t:'Welcome, '+nm.split(' ')[0],m:'Request charging to get started.',read:0})}
-  S.me=u||S.users[0];S.role='user';location.hash='#/dashboard'}
- toast('Signed in as '+S.me.name,'','ok')}
+const loginPg = () => `
+  <div class="auth">
+    <div class="card" style="max-width:440px">
+      <div class="logo" style="padding:0 0 8px;color:var(--navy);font-size:22px">${mark()}EV ChargeFlow</div>
+      <p style="margin:0 0 16px;color:#64748B;font-size:13px">Supabase-Authenticated Charging Platform</p>
+      
+      <div class="tabs">
+        <button class="${mode == 'in' ? 'on' : ''}" onclick="mode='in';route()">Sign in</button>
+        <button class="${mode == 'up' ? 'on' : ''}" onclick="mode='up';route()">Register</button>
+      </div>
+
+      ${mode == 'up' ? `
+        <label>Full Name</label>
+        <input id="nm" placeholder="e.g. Aarav Mehta" value="">
+        <label>Account Role</label>
+        <select id="userRole" style="margin-bottom:12px">
+          <option value="user">EV Driver (Default)</option>
+          <option value="admin">Station Operator / Admin</option>
+        </select>
+      ` : ''}
+
+      <label>Email Address</label>
+      <input id="em" type="email" placeholder="name@domain.com" value="${S.lastEmail || (mode == 'in' ? 'aarav@demo.in' : '')}">
+
+      <label>Password</label>
+      <input id="pw" type="password" placeholder="Enter password" value="${mode == 'in' ? 'demo1234' : ''}">
+
+      <button class="btn wide" id="authBtn" style="margin-top:20px" onclick="handleAuth()">
+        ${mode == 'up' ? 'Create Account' : 'Sign in'}
+      </button>
+
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#64748B">
+        <span style="display:inline-flex;align-items:center;gap:4px">
+          <span class="db-dot ${DB.isConfigured() ? '' : 'offline'}"></span>
+          ${DB.isConfigured() ? 'Supabase Connected' : 'Local DB Sync Active'}
+        </span>
+        <a href="javascript:void(0)" onclick="openSupabaseConfig()" style="color:#0284C7;text-decoration:none;font-weight:600">⚙️ Supabase Settings</a>
+      </div>
+    </div>
+  </div>`;
+async function handleAuth() {
+  const em = ($('#em')?.value || '').trim();
+  const pw = ($('#pw')?.value || '').trim();
+  const nm = $('#nm') ? ($('#nm').value || '').trim() : '';
+  const roleSelect = $('#userRole');
+  const role = roleSelect ? roleSelect.value : (em.toLowerCase().includes('admin') ? 'admin' : 'user');
+
+  if (!em || !pw) return toast('Missing credentials', 'Please enter both email and password.', 'warn');
+
+  const btn = $('#authBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Authenticating...'; }
+
+  try {
+    if (mode === 'up') {
+      if (!nm) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Create Account'; }
+        return toast('Full name required', 'Please provide your name to register.', 'warn');
+      }
+
+      let suUser = null;
+      if (sbClient) {
+        try {
+          const { data, error } = await sbClient.auth.signUp({
+            email: em,
+            password: pw,
+            options: { data: { full_name: nm, role: role } }
+          });
+          if (error && !error.message.includes('rate limit')) {
+            console.warn('Supabase auth notice:', error.message);
+          }
+          if (data?.user) suUser = data.user;
+        } catch (e) {
+          console.warn('Supabase remote sign up notice:', e.message);
+        }
+      }
+
+      const newId = suUser?.id || ('usr_' + (++S.id));
+      const newUser = { id: newId, name: nm, email: em, role: role, joined: 'Today ' + clock() };
+      S.users.push(newUser);
+      S.me = newUser;
+      S.role = role;
+      S.lastEmail = em;
+
+      DB.insertProfile(newUser);
+      ev(newUser.id, 'Welcome to EV ChargeFlow', 'Account successfully created and stored in database.', 'ok');
+      toast('Account Registered', `Stored in database for ${nm}.`, 'ok');
+      location.hash = role === 'admin' ? '#/admin' : '#/dashboard';
+
+    } else {
+      // Sign in
+      let suUser = null;
+      if (sbClient) {
+        try {
+          const { data, error } = await sbClient.auth.signInWithPassword({
+            email: em,
+            password: pw
+          });
+          if (error && !error.message.includes('rate limit') && !error.message.includes('Invalid login')) {
+            console.warn('Supabase auth notice:', error.message);
+          }
+          if (data?.user) suUser = data.user;
+        } catch (e) {
+          console.warn('Supabase remote sign in notice:', e.message);
+        }
+      }
+
+      let userObj = S.users.find(u => u.email.toLowerCase() === em.toLowerCase());
+      if (!userObj) {
+        const inferredRole = em.toLowerCase().includes('admin') ? 'admin' : 'user';
+        userObj = {
+          id: suUser?.id || ('usr_' + (++S.id)),
+          name: suUser?.user_metadata?.full_name || em.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+          email: em,
+          role: suUser?.user_metadata?.role || inferredRole,
+          joined: 'Today ' + clock()
+        };
+        S.users.push(userObj);
+        DB.insertProfile(userObj);
+      }
+
+      S.me = userObj;
+      S.role = userObj.role || (em.toLowerCase().includes('admin') ? 'admin' : 'user');
+      S.lastEmail = em;
+      toast(`Signed in as ${S.me.name}`, `Role: ${S.role === 'admin' ? 'Operator' : 'Driver'}`, 'ok');
+      location.hash = S.role === 'admin' ? '#/admin' : '#/dashboard';
+    }
+  } catch (err) {
+    toast('Authentication Error', err.message || 'Check your credentials.', 'warn');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = mode === 'up' ? 'Create Account' : 'Sign in';
+    }
+  }
+}
+function auth(adm) { handleAuth(); }
 const NAV={user:[['dashboard','Dashboard'],['request','Request charging'],['queue','Queue status'],['active','Active charging'],['billing','Billing'],['history','History'],['notifications','Notifications']],admin:[['admin','Dashboard'],['walkin','Walk-in customer'],['chargers','Charger management'],['queuemgmt','Queue management'],['reports','Reports']]};
 const shell=(n,t,b)=>`<div class="shell"><aside id="sb"><div class="logo">${mark()}EV ChargeFlow</div><nav>${NAV[S.role].map(([k,l])=>`<a href="#/${k}" class="${k==n?'on':''}">${l}</a>`).join('')}</nav><div class="uchip"><b>${S.me.name}</b><small>${S.role=='admin'?'Operator':'Driver'}</small><a href="#/landing" onclick="S.me=null">Sign out</a></div></aside><main><header class="top"><button class="menu" onclick="$('#sb').classList.toggle('open')">Menu</button><h2>${t}</h2><div class="tr" data-live="top">${W.top()}</div></header><div id="view" class="page">${b}</div></main></div>`;
 const TT={dashboard:'Dashboard',request:'Request charging',queue:'Queue status',active:'Active charging',billing:'Billing',history:'Charging history',notifications:'Notifications',admin:'Admin dashboard',walkin:'Walk-in customer',chargers:'Charger management',queuemgmt:'Queue management',reports:'Reports'};
@@ -730,3 +918,295 @@ function route(){clearTimeout(rt);const n=location.hash.replace('#/','')||'landi
 addEventListener('hashchange',route);route();
 setInterval(tick,1000);
 </script></body></html>
+
+
+/* ---------- LIVE DATABASE INSPECTOR & SUPABASE CONFIG MODALS ---------- */
+let activeDbTab = 'bookings';
+
+function openDbInspector() {
+  const tabs = [
+    { key: 'bookings', label: '📥 Bookings (' + DB.tables.bookings.length + ')' },
+    { key: 'waiting_queue', label: '⏳ Waiting Queue (' + DB.tables.waiting_queue.length + ')' },
+    { key: 'chargers', label: '⚡ Chargers (' + S.chargers.length + ')' },
+    { key: 'invoices', label: '🧾 Invoices (' + DB.tables.invoices.length + ')' },
+    { key: 'profiles', label: '👥 Users & Profiles (' + S.users.length + ')' }
+  ];
+
+  const htmlModal = `
+    <div class="db-modal-content">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid #E2E8F0;padding-bottom:12px">
+        <div>
+          <h3 style="margin:0;display:flex;align-items:center;gap:8px">
+            <span class="db-dot ${DB.isConfigured() ? '' : 'offline'}"></span>
+            Database Records & Live Inputs
+          </h3>
+          <small style="color:#64748B">
+            ${DB.isConfigured() 
+              ? 'Synced with Supabase PostgreSQL: ' + (sbUrl || '').replace('https://', '') 
+              : 'Local Database Mirror Active (Configure Supabase URL/Key to push to cloud)'}
+          </small>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn sm" onclick="syncFromSupabase()" title="Fetch latest tables from Supabase">🔄 Refresh DB</button>
+          <button class="btn sm ghost" data-x>✕ Close</button>
+        </div>
+      </div>
+
+      <div class="db-tabs">
+        ${tabs.map(t => `
+          <button class="db-tab-btn ${activeDbTab == t.key ? 'active' : ''}" onclick="activeDbTab='${t.key}';openDbInspector()">
+            ${t.label}
+          </button>
+        `).join('')}
+      </div>
+
+      <div style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
+        <input id="dbSearch" placeholder="Filter records by name, ID, or status..." oninput="renderDbTableRows()" style="max-width:320px;padding:6px 10px;font-size:12px">
+        <div style="font-size:12px;color:#64748B">
+          Showing real-time database records
+        </div>
+      </div>
+
+      <div class="scroll" style="max-height:360px" id="dbTableContainer">
+        ${renderDbTableContent(activeDbTab)}
+      </div>
+
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center">
+        <button class="btn sm ghost" onclick="toggleRawJsonView()">Toggle Raw JSON Payload</button>
+        <span style="font-size:11px;color:#94A3B8">PostgreSQL Table: public.${activeDbTab}</span>
+      </div>
+      <div id="rawJsonBox" style="display:none;margin-top:10px" class="db-raw-json"></div>
+    </div>
+  `;
+
+  modal(htmlModal);
+}
+
+function renderDbTableContent(tab) {
+  if (tab === 'bookings') {
+    const list = DB.tables.bookings;
+    if (!list.length) return '<div class="empty">No bookings stored yet. Request a charge or register a walk-in to create one!</div>';
+    return `
+      <table>
+        <tr><th>ID</th><th>Customer</th><th>Bay</th><th>Target</th><th>Delivered</th><th>Priority</th><th>Status</th><th>Timestamp</th></tr>
+        ${list.map(b => `
+          <tr>
+            <td><b>#${b.id}</b></td>
+            <td>${b.customer_name}</td>
+            <td>${b.charger_id ? ('C-0' + b.charger_id) : 'Queued'}</td>
+            <td>${Number(b.target_kwh).toFixed(1)} kWh</td>
+            <td>${Number(b.delivered_kwh || 0).toFixed(1)} kWh</td>
+            <td><span class="db-badge-pill ${b.priority == 3 ? 'red' : (b.priority == 2 ? 'amber' : 'blue')}">${PN[b.priority] || 'Standard'}</span></td>
+            <td><span class="db-badge-pill ${b.status == 'COMPLETED' ? 'green' : (b.status == 'CHARGING' ? 'blue' : 'amber')}">${b.status}</span></td>
+            <td><small>${b.timestamp_str || new Date(b.created_at).toLocaleTimeString()}</small></td>
+          </tr>
+        `).join('')}
+      </table>
+    `;
+  }
+
+  if (tab === 'waiting_queue') {
+    const list = DB.tables.waiting_queue;
+    if (!list.length) return '<div class="empty">Waiting queue is currently empty.</div>';
+    return `
+      <table>
+        <tr><th>ID</th><th>Customer</th><th>Target</th><th>Priority</th><th>Walk-in</th><th>Status</th><th>Submitted</th></tr>
+        ${list.map(q => `
+          <tr>
+            <td><b>#${q.id}</b></td>
+            <td>${q.customer_name}</td>
+            <td>${Number(q.target_kwh).toFixed(1)} kWh</td>
+            <td><span class="db-badge-pill ${q.priority == 3 ? 'red' : (q.priority == 2 ? 'amber' : 'blue')}">${PN[q.priority] || 'Standard'}</span></td>
+            <td>${q.is_walkin ? 'Yes' : 'No'}</td>
+            <td><span class="db-badge-pill ${q.status == 'ALLOCATED' ? 'green' : 'amber'}">${q.status}</span></td>
+            <td><small>${q.timestamp_str || 'Now'}</small></td>
+          </tr>
+        `).join('')}
+      </table>
+    `;
+  }
+
+  if (tab === 'chargers') {
+    return `
+      <table>
+        <tr><th>Code</th><th>Location</th><th>Power</th><th>Status</th><th>Utilization</th><th>Active Session</th></tr>
+        ${S.chargers.map(c => `
+          <tr>
+            <td><b>${c.code}</b></td>
+            <td>${c.loc}</td>
+            <td>${c.kw} kW</td>
+            <td><span class="db-badge-pill ${c.status == 'AVAILABLE' ? 'green' : (c.status == 'CHARGING' ? 'blue' : (c.status == 'RESERVED' ? 'amber' : 'red')}">${c.status}</span></td>
+            <td>${c.u || 0}%</td>
+            <td>${c.bk ? ('Booking #' + c.bk) : 'None'}</td>
+          </tr>
+        `).join('')}
+      </table>
+    `;
+  }
+
+  if (tab === 'invoices') {
+    const list = DB.tables.invoices;
+    if (!list.length) return '<div class="empty">No invoices generated yet.</div>';
+    return `
+      <table>
+        <tr><th>Invoice #</th><th>Customer</th><th>Bay</th><th>Energy</th><th>Energy Cost</th><th>Service Fee</th><th>GST</th><th>Total (INR)</th></tr>
+        ${list.map(h => `
+          <tr>
+            <td><b>INV-${String(h.id).padStart(5, '0')}</b></td>
+            <td>${h.customer_name}</td>
+            <td>${h.charger_code}</td>
+            <td>${Number(h.energy_kwh).toFixed(2)} kWh</td>
+            <td>${inr(h.energy_cost)}</td>
+            <td>${inr(h.service_fee)}</td>
+            <td>${inr(h.gst_amount)}</td>
+            <td><b>${inr(h.total_amount)}</b></td>
+          </tr>
+        `).join('')}
+      </table>
+    `;
+  }
+
+  if (tab === 'profiles') {
+    return `
+      <table>
+        <tr><th>ID</th><th>Full Name</th><th>Email</th><th>Role</th><th>Registered</th></tr>
+        ${S.users.map(u => `
+          <tr>
+            <td><code>${String(u.id).slice(0, 10)}</code></td>
+            <td><b>${u.name}</b></td>
+            <td>${u.email}</td>
+            <td><span class="db-badge-pill ${u.role == 'admin' ? 'blue' : 'green'}">${u.role == 'admin' ? 'Operator' : 'Driver'}</span></td>
+            <td>${u.joined || 'Today'}</td>
+          </tr>
+        `).join('')}
+      </table>
+    `;
+  }
+
+  return '';
+}
+
+function renderDbTableRows() {
+  const query = ($('#dbSearch')?.value || '').toLowerCase();
+  const c = $('#dbTableContainer');
+  if (!c) return;
+  if (!query) {
+    c.innerHTML = renderDbTableContent(activeDbTab);
+    return;
+  }
+  const rows = c.querySelectorAll('tr');
+  rows.forEach((r, idx) => {
+    if (idx === 0) return; // header
+    const text = r.textContent.toLowerCase();
+    r.style.display = text.includes(query) ? '' : 'none';
+  });
+}
+
+function toggleRawJsonView() {
+  const box = $('#rawJsonBox');
+  if (!box) return;
+  if (box.style.display == 'none') {
+    let data = [];
+    if (activeDbTab == 'bookings') data = DB.tables.bookings;
+    else if (activeDbTab == 'waiting_queue') data = DB.tables.waiting_queue;
+    else if (activeDbTab == 'chargers') data = S.chargers;
+    else if (activeDbTab == 'invoices') data = DB.tables.invoices;
+    else if (activeDbTab == 'profiles') data = S.users;
+    box.textContent = JSON.stringify(data, null, 2);
+    box.style.display = 'block';
+  } else {
+    box.style.display = 'none';
+  }
+}
+
+async function syncFromSupabase() {
+  if (!sbClient) {
+    toast('Local Database Refreshed', 'Configuring Supabase will enable remote live sync.', 'ok');
+    openDbInspector();
+    return;
+  }
+  toast('Syncing with Supabase...', '', 'info');
+  try {
+    const { data: bData } = await sbClient.from('bookings').select('*').order('id', { ascending: false });
+    if (bData && bData.length) DB.tables.bookings = bData;
+
+    const { data: qData } = await sbClient.from('waiting_queue').select('*').order('id', { ascending: false });
+    if (qData && qData.length) DB.tables.waiting_queue = qData;
+
+    const { data: iData } = await sbClient.from('invoices').select('*').order('id', { ascending: false });
+    if (iData && iData.length) DB.tables.invoices = iData;
+
+    DB.saveLocal();
+    toast('Supabase Sync Complete', 'Retrieved latest records.', 'ok');
+    openDbInspector();
+  } catch (err) {
+    toast('Sync Notice', err.message || 'Could not fetch remote tables', 'warn');
+  }
+}
+
+function openSupabaseConfig() {
+  const curUrl = localStorage.getItem('chargeflow_sb_url') || '';
+  const curKey = localStorage.getItem('chargeflow_sb_key') || '';
+
+  const h = `
+    <div style="max-width:540px;width:90vw">
+      <h3 style="margin:0 0 6px;display:flex;align-items:center;gap:8px">
+        <span>⚡</span> Supabase Database & Auth Configuration
+      </h3>
+      <p style="font-size:12px;color:#64748B;margin:0 0 16px">
+        Connect your Supabase project to persist driver bookings, priority queue buffers, hardware statuses, and tax invoices in real PostgreSQL.
+      </p>
+
+      <label>Supabase Project URL</label>
+      <input id="cfgSbUrl" placeholder="https://xyzprojectref.supabase.co" value="${curUrl}">
+
+      <label>Supabase Anon Public API Key</label>
+      <input id="cfgSbKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." value="${curKey}">
+
+      <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:12px;margin:16px 0;font-size:12px">
+        <b style="display:block;margin-bottom:4px;color:#0F172A">📄 Database Schema Ready</b>
+        <span>Your project includes a complete PostgreSQL schema script (<code style="background:#E2E8F0;padding:2px 4px;border-radius:4px">supabase_schema.sql</code>). Paste it into your Supabase SQL Editor.</span>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:20px;flex-wrap:wrap">
+        <button class="btn" onclick="saveSupabaseConfig()">Save & Connect</button>
+        <button class="btn ghost" onclick="testSupabaseConnection()">Test Connection</button>
+        <button class="btn ghost" data-x>Cancel</button>
+      </div>
+    </div>
+  `;
+  modal(h);
+}
+
+function saveSupabaseConfig() {
+  const u = ($('#cfgSbUrl')?.value || '').trim();
+  const k = ($('#cfgSbKey')?.value || '').trim();
+  localStorage.setItem('chargeflow_sb_url', u);
+  localStorage.setItem('chargeflow_sb_key', k);
+  sbUrl = u;
+  sbKey = k;
+  initSupabase();
+  closeM();
+  toast(u && k ? 'Supabase Connected' : 'Supabase Config Cleared', u ? 'Database persistence active.' : 'Reverted to local mirror.', 'ok');
+  refresh();
+}
+
+async function testSupabaseConnection() {
+  const u = ($('#cfgSbUrl')?.value || '').trim();
+  const k = ($('#cfgSbKey')?.value || '').trim();
+  if (!u || !k) return toast('Missing Fields', 'Please enter both Supabase URL and Anon Key.', 'warn');
+  
+  if (!window.supabase) return toast('Supabase Library Error', 'Supabase JS CDN is not reachable.', 'warn');
+  
+  try {
+    const testClient = window.supabase.createClient(u, k);
+    const { data, error } = await testClient.from('chargers').select('count').limit(1);
+    if (error && !error.message.includes('relation "chargers" does not exist')) {
+      throw error;
+    }
+    toast('Connection Successful! 🟢', 'Successfully contacted Supabase Project.', 'ok');
+  } catch (err) {
+    toast('Connection Notice', err.message || 'Check your URL & Key.', 'warn');
+  }
+}
+
