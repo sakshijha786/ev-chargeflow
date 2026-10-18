@@ -333,6 +333,74 @@ if (!DB.tables.chargers.length && typeof S !== 'undefined' && S.chargers) {
   S.chargers.forEach(c => DB.updateCharger(c));
 }
 
+
+// Seed active station records into DB tables so they show up immediately when database is checked
+if (!DB.tables.bookings.length) {
+  S.bk.forEach(b => {
+    DB.tables.bookings.push({
+      id: b.id,
+      user_id: b.uid,
+      customer_name: b.name,
+      charger_id: b.ch,
+      target_kwh: b.target || 20,
+      delivered_kwh: b.got || 0,
+      status: b.status,
+      priority: b.pri || 1,
+      is_walkin: Boolean(b.walk),
+      created_at: new Date(Date.now() - 3600000).toISOString(),
+      timestamp_str: 'Today ' + clock()
+    });
+  });
+}
+
+if (!DB.tables.waiting_queue.length) {
+  S.queue.forEach(q => {
+    DB.tables.waiting_queue.push({
+      id: q.id,
+      user_id: q.uid,
+      customer_name: q.name,
+      priority: q.pri || 1,
+      target_kwh: q.kwh || 22,
+      is_walkin: Boolean(q.walk),
+      status: 'WAITING',
+      created_at: new Date().toISOString(),
+      timestamp_str: clock()
+    });
+  });
+}
+
+if (!DB.tables.invoices.length) {
+  S.hist.forEach(h => {
+    DB.tables.invoices.push({
+      id: h.id,
+      user_id: h.uid,
+      customer_name: h.name || 'Aarav Mehta',
+      charger_code: h.code,
+      energy_kwh: h.kwh,
+      energy_cost: h.e,
+      service_fee: h.f,
+      gst_amount: h.g,
+      total_amount: h.tot,
+      status: h.status,
+      created_at: new Date(Date.now() - 86400000).toISOString(),
+      timestamp_str: h.when || clock()
+    });
+  });
+}
+
+if (!DB.tables.profiles.length) {
+  S.users.forEach(u => {
+    DB.tables.profiles.push({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role || 'user',
+      created_at: new Date().toISOString()
+    });
+  });
+}
+DB.saveLocal();
+
 /* ---------- rules engine ---------- */
 function ev(uid,t,m,type){S.notes.unshift({uid,t,m,type,read:0,at:clock()});if(S.role=='admin'||(S.me&&uid==S.me.id&&S.role=='user'))toast(t,m,type)}
 function allocate(){ // priority first, FIFO inside a priority; fast chargers go to Premium/Emergency
@@ -380,6 +448,56 @@ W.top = () => `
       ⚙️ Supabase Setup
     </button>
   </div>` + (S.role == 'user' && S.me ? `<a class="bell" href="#/notifications">Alerts<b>${S.notes.filter(n => n.uid == S.me.id && !n.read).length}</b></a>` : '');+(S.role=='user'?`<a class="bell" href="#/notifications">Alerts<b>${S.notes.filter(n=>n.uid==S.me.id&&!n.read).length}</b></a>`:'');
+
+W.dbview = () => `
+  <div class="card" style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border-left:5px solid #10B981">
+    <div>
+      <h3 style="margin:0;display:flex;align-items:center;gap:8px">
+        <span class="db-dot"></span>
+        Supabase PostgreSQL Database Explorer
+      </h3>
+      <small style="color:#64748B">
+        Live PostgreSQL persistence: inputs are automatically stored and queried across relational tables.
+      </small>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn sm" onclick="syncFromSupabase();refresh()" title="Sync and refresh latest tables">🔄 Refresh Database</button>
+      <button class="btn sm ghost" onclick="addQuickTestInput()" title="Add an instant test booking input to verify live persistence">➕ Add Test Input</button>
+      <button class="btn sm ghost" onclick="openSupabaseConfig()" title="Edit Supabase Connection credentials">⚙️ Supabase Setup</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="db-tabs">
+      ${[
+        { key: 'bookings', label: '📥 Bookings Table (' + DB.tables.bookings.length + ')' },
+        { key: 'waiting_queue', label: '⏳ Waiting Queue (' + DB.tables.waiting_queue.length + ')' },
+        { key: 'chargers', label: '⚡ Chargers (' + S.chargers.length + ')' },
+        { key: 'invoices', label: '🧾 Invoices (' + DB.tables.invoices.length + ')' },
+        { key: 'profiles', label: '👥 User Profiles (' + S.users.length + ')' }
+      ].map(t => `
+        <button class="db-tab-btn ${activeDbTab == t.key ? 'active' : ''}" onclick="activeDbTab='${t.key}';refresh()">
+          ${t.label}
+        </button>
+      `).join('')}
+    </div>
+
+    <div style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <input id="dbSearch" placeholder="Search inputs by driver name, bay, ID, or status..." oninput="renderDbTableRows()" style="max-width:360px;padding:8px 12px;font-size:13px">
+      <div style="font-size:12px;color:#64748B;display:flex;align-items:center;gap:12px">
+        <span>PostgreSQL schema: <b>public.${activeDbTab}</b></span>
+        <button class="btn sm ghost" onclick="toggleRawJsonView()">Toggle Raw JSON Payload</button>
+      </div>
+    </div>
+
+    <div class="scroll" style="max-height:480px" id="dbTableContainer">
+      ${renderDbTableContent(activeDbTab)}
+    </div>
+
+    <div id="rawJsonBox" style="display:none;margin-top:14px" class="db-raw-json"></div>
+  </div>
+`;
+
 W.board=()=>`<div class="grid bays">${S.chargers.map(c=>{const b=c.bk&&S.bk.find(x=>x.id==c.bk),p=b&&b.status=='CHARGING'?Math.min(100,b.got/b.target*100):0,mine=b&&isMine(b);
  return `<div class="bay ${c.status} ${mine?'is-me':''}"><div class="bh"><b>${c.code}</b><span>${c.kw} kW</span></div>${pill(c.status)}<div class="bm">${b?(mine?'<span class="you-chip">You</span>':b.name.split(' ')[0])+(b.status=='PENDING_ARRIVAL'?(mine?` <b style="color:#7C3AED">· arrive in ${fmt(b.deadline-T)}</b>`:` · arrive in ${fmt(b.deadline-T)}`):` · ${Math.round(p)}%`):c.loc}</div><div class="bar"><i style="width:${p}%"></i></div></div>`}).join('')}</div>`;
 const qlist=(key,adm)=>{const q=qs(),P=S.pp[key]||(S.pp[key]={});const h=q.length?q.map((e,i)=>`<div class="qrow${P[e.id]>i+1?' up':''}${isMine(e)?' me':''}"><span class="pos">${i+1}</span><div><b>${isMine(e)?'<span class="you-chip">You</span>':e.name}</b>${e.walk?' <span class="pri p1">Walk-in</span>':''}<small>${Math.round(e.kwh)} kWh needed · waiting ${fmt(T-e.t0)}</small></div>${pb(e.pri)}${adm?`<span class="acts"><button class="btn sm ghost" onclick="promote(${e.id})">Promote</button><button class="btn sm red" onclick="dropQ(${e.id})">Remove</button></span>`:`<span class="eta">~${(i+1)*4} min</span>`}</div>`).join(''):'<div class="empty">Queue is clear. New requests get a bay right away.</div>';
@@ -419,7 +537,7 @@ W.rep=()=>{const max=Math.max(...S.rev.map(r=>r[1]),1),all=S.hist.filter(h=>h.st
  <div class="card" style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h3>Customer Invoices & Billing Audit</h3><button class="btn sm ghost" onclick="downloadReportPDF()">Export Report (PDF)</button></div><div class="scroll"><table><tr><th>Inv #</th><th>Driver</th><th>Date</th><th>Bay</th><th>Energy</th><th>Subtotal</th><th>GST (18%)</th><th>Total</th><th>Action</th></tr>${all.map(h=>`<tr><td><b>#${h.id}</b></td><td>${h.name}</td><td>${h.when}</td><td>${h.code}</td><td>${h.kwh} kWh</td><td>${inr(h.e+h.f)}</td><td>${inr(h.g)}</td><td><b>${inr(h.tot)}</b></td><td><button class="btn sm" onclick="downloadInvoicePDF(${h.id})">Download PDF</button></td></tr>`).join('')||'<tr><td colspan=9 class="empty">No completed invoices recorded.</td></tr>'}</table></div></div>
  <div class="card"><h3>Billing rules applied</h3><div class="formula">Total = (<span>kWh × ${inr(RATE)}</span> + <span>${inr(FEE)} service fee</span>) + <span>18% GST</span></div></div>`};
 /* ---------- pages ---------- */
-const P={};
+const P={}; P.database = () => L('dbview');
 P.dashboard=()=>L('dash');P.queue=()=>L('queue');P.active=()=>L('active');P.billing=()=>L('bill');P.history=()=>L('hist');P.notifications=()=>L('notes');
 P.admin=()=>L('adm');P.chargers=()=>L('chg');P.queuemgmt=()=>L('qm');P.reports=()=>L('rep');
 const vopts=`<option>${Object.keys(VEH).join('</option><option>')}</option>`;
@@ -800,6 +918,14 @@ const loginPg = () => `
         ${mode == 'up' ? 'Create Account' : 'Sign in'}
       </button>
 
+      <div style="margin:16px 0 0;padding:12px;background:#F1F5F9;border-radius:10px;text-align:center">
+        <small style="display:block;margin-bottom:8px;font-weight:700;color:#475569">⚡ One-Click Instant Sign In:</small>
+        <div style="display:flex;gap:8px;justify-content:center">
+          <button class="quick-btn" onclick="quickLogin('driver')">Driver (Aarav)</button>
+          <button class="quick-btn" onclick="quickLogin('admin')">Operator (Admin)</button>
+        </div>
+      </div>
+
       <div style="margin-top:18px;padding-top:14px;border-top:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#64748B">
         <span style="display:inline-flex;align-items:center;gap:4px">
           <span class="db-dot ${DB.isConfigured() ? '' : 'offline'}"></span>
@@ -905,15 +1031,49 @@ async function handleAuth() {
   }
 }
 function auth(adm) { handleAuth(); }
-const NAV={user:[['dashboard','Dashboard'],['request','Request charging'],['queue','Queue status'],['active','Active charging'],['billing','Billing'],['history','History'],['notifications','Notifications']],admin:[['admin','Dashboard'],['walkin','Walk-in customer'],['chargers','Charger management'],['queuemgmt','Queue management'],['reports','Reports']]};
+const NAV = {
+  user: [
+    ['dashboard', 'Dashboard'],
+    ['request', 'Request charging'],
+    ['queue', 'Queue status'],
+    ['active', 'Active charging'],
+    ['billing', 'Billing'],
+    ['history', 'History'],
+    ['notifications', 'Notifications'],
+    ['database', '📊 Database Inspector']
+  ],
+  admin: [
+    ['admin', 'Dashboard'],
+    ['walkin', 'Walk-in customer'],
+    ['chargers', 'Charger management'],
+    ['queuemgmt', 'Queue management'],
+    ['reports', 'Reports'],
+    ['database', '📊 Database Inspector']
+  ]
+};
 const shell=(n,t,b)=>`<div class="shell"><aside id="sb"><div class="logo">${mark()}EV ChargeFlow</div><nav>${NAV[S.role].map(([k,l])=>`<a href="#/${k}" class="${k==n?'on':''}">${l}</a>`).join('')}</nav><div class="uchip"><b>${S.me.name}</b><small>${S.role=='admin'?'Operator':'Driver'}</small><a href="#/landing" onclick="S.me=null">Sign out</a></div></aside><main><header class="top"><button class="menu" onclick="$('#sb').classList.toggle('open')">Menu</button><h2>${t}</h2><div class="tr" data-live="top">${W.top()}</div></header><div id="view" class="page">${b}</div></main></div>`;
-const TT={dashboard:'Dashboard',request:'Request charging',queue:'Queue status',active:'Active charging',billing:'Billing',history:'Charging history',notifications:'Notifications',admin:'Admin dashboard',walkin:'Walk-in customer',chargers:'Charger management',queuemgmt:'Queue management',reports:'Reports'};
+const TT = {
+  dashboard: 'Dashboard',
+  request: 'Request charging',
+  queue: 'Queue status',
+  active: 'Active charging',
+  billing: 'Billing',
+  history: 'Charging history',
+  notifications: 'Notifications',
+  admin: 'Admin dashboard',
+  walkin: 'Walk-in customer',
+  chargers: 'Charger management',
+  queuemgmt: 'Queue management',
+  reports: 'Reports',
+  database: 'Supabase Database Inspector'
+};
 const skel=()=>'<div class="grid k4">'+'<div class="card sk"></div>'.repeat(4)+'</div><div class="card sk tall"></div>';
 function route(){clearTimeout(rt);const n=location.hash.replace('#/','')||'landing',app=$('#app');
  if(n=='landing'){app.innerHTML=landing();return enter()}
  if(n=='login'){app.innerHTML=loginPg();return enter()}
  const admPage=['admin','walkin','chargers','queuemgmt','reports'].includes(n);
- if(!P[n]||!S.me||admPage!=(S.role=='admin')){location.hash=S.me?(S.role=='admin'?'#/admin':'#/dashboard'):'#/login';return}
+ const isSharedPage = ['database'].includes(n);
+ if(!P[n]||!S.me||(!isSharedPage && admPage!=(S.role=='admin'))){location.hash=S.me?(S.role=='admin'?'#/admin':'#/dashboard'):'#/login';return}
  app.innerHTML=shell(n,TT[n],skel());rt=setTimeout(()=>{$('#view').innerHTML=P[n]();enter();if(n=='request')calc()},350)}
 addEventListener('hashchange',route);route();
 setInterval(tick,1000);
